@@ -29,7 +29,7 @@ export function getSignals() {
       low: s.low || 0,
       spread: `${(s.spread_pct || 0).toFixed(3)}%`,
       confidence: s.confidence ? s.confidence.charAt(0).toUpperCase() + s.confidence.slice(1) : 'Medium',
-      status: 'DETECTED'
+      status: s.status || 'DETECTED'
     }));
   } catch {
     return [];
@@ -52,6 +52,7 @@ export function getSkipReason(instrument: string): string {
     
     for (const line of lines) {
       if (line.includes(instrument) && line.includes(today)) {
+        if (line.includes("Orders placed")) return "Breakout orders placed (Simulation Active)";
         if (line.includes("Spread too wide")) return "Spread exceeded 0.8% limit";
         if (line.includes("stale signal")) return "Signal detected too late (stale)";
         if (line.includes("Already reported")) return "Signal already processed";
@@ -128,7 +129,7 @@ export async function getAllTrades() {
   // Track which instruments traded today
   const tradedToday = new Set<string>();
 
-  tradeFiles.sort().reverse().forEach(file => {
+  tradeFiles.sort().reverse().forEach((file: string) => {
     const dateStr = file.replace('trades_', '').replace('.json', '');
     const isToday = dateStr === todayDateStr;
     const trades = getTradesForDate(dateStr);
@@ -159,7 +160,7 @@ export async function getAllTrades() {
       });
     } else {
       // For historical data or if Kite fails, use logs
-      trades.forEach(t => {
+      trades.forEach((t: any) => {
         if (isToday) tradedToday.add(t.stock);
         allTrades.push({ ...t, verified: false });
       });
@@ -167,7 +168,7 @@ export async function getAllTrades() {
   });
 
   // For the current date (today), add instruments that haven't traded yet
-  Object.keys(activeInstruments).forEach(symbol => {
+  Object.keys(activeInstruments).forEach((symbol: string) => {
     if (!tradedToday.has(symbol)) {
       const reason = getSkipReason(symbol);
       allTrades.push({
@@ -229,3 +230,14 @@ export async function getSummary() {
     last_sync: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
   };
 }
+
+export function getSimulatedOrders() {
+  const filePath = path.join(DATA_DIR, 'simulated_orders.json');
+  if (!fs.existsSync(filePath)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+

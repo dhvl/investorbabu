@@ -27,11 +27,24 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [scannerStatus, setScannerStatus] = useState<"active" | "inactive" | "loading">("loading");
 
+  const [hasNew, setHasNew] = useState(false);
+
   useEffect(() => {
     async function checkStatus() {
       try {
         const data = await api.dashboard.getStatus();
         setScannerStatus(data.scanner || "inactive");
+
+        // Check for new notifications
+        const resp = await fetch('/api/notifications');
+        const notifs = await resp.json();
+        if (Array.isArray(notifs) && notifs.length > 0) {
+          const lastSeen = localStorage.getItem('lastSeenNotification');
+          const latest = notifs[0].timestamp;
+          if (!lastSeen || new Date(latest) > new Date(lastSeen)) {
+            setHasNew(true);
+          }
+        }
       } catch (err) {
         setScannerStatus("inactive");
       }
@@ -41,11 +54,23 @@ export default function DashboardLayout({
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (pathname === '/dashboard/notifications') {
+      setHasNew(false);
+      // Mark as seen
+      fetch('/api/notifications').then(r => r.json()).then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          localStorage.setItem('lastSeenNotification', data[0].timestamp);
+        }
+      });
+    }
+  }, [pathname]);
+
   const sidebarItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, href: "/dashboard" },
     { id: "signals", label: "Signals", icon: Bell, href: "/dashboard/signals" },
-    { id: "notifications", label: "Notification Logs", icon: MessageSquare, href: "/dashboard/notifications" },
     { id: "trades", label: "Trades", icon: History, href: "/dashboard/trades" },
+    { id: "simulation", label: "Simulation", icon: Activity, href: "/dashboard/simulation" },
     { id: "stocks", label: "Stocks", icon: Package, href: "/dashboard/stocks" },
     { id: "logs", label: "System Logs", icon: Terminal, href: "/dashboard/logs" },
   ];
@@ -80,6 +105,21 @@ export default function DashboardLayout({
         </nav>
 
         <div className="mt-auto flex flex-col gap-1">
+          <Link 
+            href="/dashboard/notifications" 
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl transition-all",
+              pathname === "/dashboard/notifications" 
+                ? "bg-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)]" 
+                : "text-slate-400 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <div className="relative">
+              <MessageSquare className="w-5 h-5" />
+              {hasNew && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#0a0a0f]" />}
+            </div>
+            <span className="font-medium text-sm">Notification Logs</span>
+          </Link>
           <Link href="/dashboard/settings" className="flex items-center gap-3 px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all">
             <Settings className="w-5 h-5" />
             <span className="font-medium text-sm">Settings</span>
@@ -127,9 +167,20 @@ export default function DashboardLayout({
                   Scanner {scannerStatus === "active" ? "Active" : scannerStatus === "loading" ? "Syncing" : "Offline"}
                 </span>
              </div>
-             <button className="p-2 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all">
-                <Bell className="w-5 h-5 text-slate-400" />
-             </button>
+              <Link 
+                href="/dashboard/notifications"
+                className={cn(
+                  "p-2 rounded-xl transition-all relative group overflow-hidden",
+                  hasNew 
+                    ? "bg-blue-500/10 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.3)] animate-pulse-gentle" 
+                    : "bg-white/5 border border-white/10 hover:bg-white/10"
+                )}
+              >
+                <Bell className={cn("w-5 h-5", hasNew ? "text-blue-400" : "text-slate-400")} />
+                {hasNew && (
+                  <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-[#0a0a0f] shadow-[0_0_8px_rgba(59,130,246,1)]" />
+                )}
+              </Link>
           </div>
         </header>
 
