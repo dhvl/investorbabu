@@ -73,7 +73,7 @@ export default function ClientDashboard() {
         <div className="text-sm">
           <p className="font-bold text-white mb-1">Trading Rule Reminder</p>
           <p className="text-text-secondary leading-relaxed">
-            All trades are MIS (Intraday). Zerodha will auto-square off positions at 3:20 PM IST. 
+            All trades are MIS (Intraday). Active brokers (such as Upstox) will auto-square off positions at 3:20 PM IST. 
             Ensure your capital per trade matches your risk appetite in profile settings.
           </p>
         </div>

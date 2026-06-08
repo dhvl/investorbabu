@@ -93,7 +93,7 @@ export default function SimulationPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-4xl font-bold text-white tracking-tight font-display mb-2 flex items-center gap-3">
-            Simulation Trades <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
+            Indian Equity Simulation <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
           </h1>
           <p className="text-slate-400">Real-time simulated dry-run execution tracker and bracket progress.</p>
         </div>

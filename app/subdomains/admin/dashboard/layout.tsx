@@ -68,13 +68,11 @@ export default function DashboardLayout({
   }, [pathname]);
 
   const sidebarItems = [
-    { id: "overview", label: "Overview", icon: LayoutDashboard, href: "/dashboard" },
-    { id: "signals", label: "Signals", icon: Bell, href: "/dashboard/signals" },
-    { id: "trades", label: "Trades", icon: History, href: "/dashboard/trades" },
-    { id: "simulation", label: "Simulation", icon: Activity, href: "/dashboard/simulation" },
-    { id: "us-simulation", label: "US Simulations", icon: Activity, href: "/dashboard/us-simulation" },
-    { id: "crypto-simulation", label: "Crypto Simulations", icon: Activity, href: "/dashboard/crypto-simulation" },
-    { id: "stocks", label: "Stocks", icon: Package, href: "/dashboard/stocks" },
+    { id: "overview", label: "Live Overview", icon: LayoutDashboard, href: "/dashboard" },
+    { id: "clients", label: "Clients", icon: Users, href: "/dashboard/clients" },
+    { id: "stocks", label: "Scanned Stocks", icon: Package, href: "/dashboard/stocks" },
+    { id: "signals", label: "Signal Monitor", icon: Bell, href: "/dashboard/signals" },
+    { id: "trades", label: "Live Trades", icon: History, href: "/dashboard/trades" },
     { id: "logs", label: "System Logs", icon: Terminal, href: "/dashboard/logs" },
   ];
 
@@ -86,7 +84,10 @@ export default function DashboardLayout({
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.4)]">
             <TrendingUp className="text-white w-5 h-5" />
           </div>
-          <span className="font-bold text-xl text-white tracking-tight font-display">Investor<span className="text-blue-500">Babu</span></span>
+          <div className="flex flex-col">
+            <span className="font-bold text-lg text-white tracking-tight font-display">Investor<span className="text-blue-500">Babu</span></span>
+            <span className="text-[0.55rem] font-bold text-red-400 uppercase tracking-widest -mt-1 font-mono">Live Admin</span>
+          </div>
         </Link>
 
         <nav className="flex-1 flex flex-col gap-1 -mx-6">
@@ -113,7 +114,7 @@ export default function DashboardLayout({
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl transition-all",
               pathname === "/dashboard/notifications" 
-                ? "bg-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)]" 
+                ? "bg-white/10 text-white" 
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             )}
           >
@@ -121,23 +122,11 @@ export default function DashboardLayout({
               <MessageSquare className="w-5 h-5" />
               {hasNew && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#0a0a0f]" />}
             </div>
-            <span className="font-medium text-sm">Notification Logs</span>
+            <span className="font-medium text-sm">Notifications</span>
           </Link>
-          <Link 
-            href="/dashboard/clients" 
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl transition-all",
-              pathname === "/dashboard/clients" 
-                ? "bg-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)]" 
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            )}
-          >
-            <Users className="w-5 h-5" />
-            <span className="font-medium text-sm">Clients</span>
-          </Link>
-          <Link href="/dashboard/settings" className="flex items-center gap-3 px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+          <Link href="/dashboard/settings" className={cn("flex items-center gap-3 px-3 py-2 rounded-xl transition-all", pathname === "/dashboard/settings" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white hover:bg-white/5")}>
             <Settings className="w-5 h-5" />
-            <span className="font-medium text-sm">Settings</span>
+            <span className="font-medium text-sm">System Settings</span>
           </Link>
           <Link href="/login" className="flex items-center gap-3 px-3 py-2 rounded-xl text-red-500 hover:bg-red-500/10 transition-all">
             <LogOut className="w-5 h-5" />
