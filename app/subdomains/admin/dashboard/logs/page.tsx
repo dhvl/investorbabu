@@ -19,43 +19,32 @@ export default function LogsPage() {
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let eventSource: EventSource;
+    let active = true;
 
-    const connect = () => {
-      eventSource = new EventSource("/api/logs/stream");
-
-      eventSource.onopen = () => {
-        setIsConnected(true);
-        console.log("Log stream connected");
-      };
-
-      eventSource.onmessage = (event) => {
-        try {
-          const newLog = JSON.parse(JSON.parse(event.data)); // Double parsed because of SSE encoding
-          setLogs((prev) => {
-            // Prevent duplicates if they happen to come through
-            const isDuplicate = prev.some(l => l.timestamp === newLog.timestamp && l.message === newLog.message);
-            if (isDuplicate) return prev;
-            return [...prev, newLog].slice(-500); // Keep last 500 logs for performance
-          });
-        } catch (err) {
-          console.error("Error parsing log event:", err);
+    const fetchLogs = async () => {
+      try {
+        const res = await fetch("/api/logs/stream");
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        if (active) {
+          // data is parsed directly since we return JSON from proxy endpoint
+          setLogs(data);
+          setIsConnected(true);
         }
-      };
-
-      eventSource.onerror = (err) => {
-        setIsConnected(false);
-        console.error("Log stream error:", err);
-        eventSource.close();
-        // Attempt reconnect after 5 seconds
-        setTimeout(connect, 5000);
-      };
+      } catch (err) {
+        console.error("Error fetching logs:", err);
+        if (active) {
+          setIsConnected(false);
+        }
+      }
     };
 
-    connect();
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 4000);
 
     return () => {
-      if (eventSource) eventSource.close();
+      active = false;
+      clearInterval(interval);
     };
   }, []);
 

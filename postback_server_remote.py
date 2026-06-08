@@ -733,6 +733,42 @@ def tradingview_alert():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/logs", methods=["GET"])
+def get_system_logs():
+    import re
+    log_file = "/home/investo/bluecandle/bluecandle.log"
+    if not os.path.exists(log_file):
+        log_file = "bluecandle.log"
+    
+    if not os.path.exists(log_file):
+        return jsonify([])
+        
+    try:
+        with open(log_file, "r") as f:
+            lines = f.readlines()[-150:]
+            
+        parsed_logs = []
+        for line in lines:
+            if not line.strip():
+                continue
+            match = re.match(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?:,\d+)?\s+(?:\[)?(INFO|WARNING|ERROR|DEBUG)(?:\])?\s+(.*)$", line)
+            if match:
+                parsed_logs.append({
+                    "timestamp": match.group(1),
+                    "level": match.group(2),
+                    "message": match.group(3).strip()
+                })
+            else:
+                parsed_logs.append({
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "level": "INFO",
+                    "message": line.strip()
+                })
+        return jsonify(parsed_logs)
+    except Exception as e:
+        return jsonify([{"timestamp": "", "level": "ERROR", "message": f"Error reading log file: {str(e)}"}]), 500
+
+
 @app.route("/", methods=["GET"])
 def index():
     return jsonify({"service": "investorbabu.com API", "status": "running"}), 200
