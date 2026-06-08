@@ -227,6 +227,15 @@ export default function DashboardOverview() {
                 <div className="absolute top-[20%] left-[30%] w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping pointer-events-none" />
                 <div className="absolute bottom-[35%] right-[25%] w-2 h-2 bg-emerald-400 rounded-full animate-pulse pointer-events-none" />
                 <div className="absolute top-[45%] right-[40%] w-1.5 h-1.5 bg-amber-400 rounded-full pointer-events-none" />
+                
+                {/* New Additional Active Blips */}
+                <div className="absolute top-[25%] left-[18%] w-2 h-2 bg-cyan-400 rounded-full animate-pulse pointer-events-none shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
+                <div className="absolute bottom-[20%] left-[28%] w-3 h-3 bg-emerald-500 rounded-full animate-ping pointer-events-none" style={{ animationDuration: '3s' }} />
+                <div className="absolute top-[50%] right-[12%] w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse pointer-events-none shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
+                <div className="absolute top-[12%] right-[32%] w-2 h-2 bg-emerald-400 rounded-full animate-ping pointer-events-none" style={{ animationDuration: '2.5s' }} />
+                <div className="absolute bottom-[15%] left-[48%] w-2 h-2 bg-cyan-500 rounded-full animate-pulse pointer-events-none" />
+                <div className="absolute bottom-[28%] right-[15%] w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping pointer-events-none" style={{ animationDuration: '4s' }} />
+                <div className="absolute top-[38%] left-[10%] w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse pointer-events-none" />
 
                 <span className="text-[0.6rem] font-black uppercase text-emerald-400/30 font-mono tracking-widest absolute">
                   SCANNER ACTIVE
