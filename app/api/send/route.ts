@@ -6,22 +6,18 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   const resend = new Resend(process.env.RESEND_API_KEY);
   try {
-    const { name, email, phone, postcode, service, message } = await request.json();
+    const { to, subject, html, text } = await request.json();
+
+    if (!to || !subject || (!html && !text)) {
+      return NextResponse.json({ error: 'Missing required fields (to, subject, and body)' }, { status: 400 });
+    }
 
     const data = await resend.emails.send({
       from: 'InvestorBabu <team@investorbabu.com>',
-      to: ['team@investorbabu.com'],
-      subject: `New Contact Request: ${service}`,
-      html: `
-        <h2>New Contact Request</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Phone:</strong> ${phone}</p>
-        <p><strong>Postcode:</strong> ${postcode}</p>
-        <p><strong>Service:</strong> ${service}</p>
-        <p><strong>Message:</strong></p>
-        <p>${message}</p>
-      `,
+      to: Array.isArray(to) ? to : [to],
+      subject: subject,
+      html: html,
+      text: text,
     });
 
     if (data.error) {
