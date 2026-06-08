@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function SimulationPage() {
+export default function UsSimulationPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
@@ -27,7 +27,7 @@ export default function SimulationPage() {
   useEffect(() => {
     async function fetchSimulationData() {
       try {
-        const resp = await fetch("/api/simulation");
+        const resp = await fetch("/api/us-simulation");
         const data = await resp.json();
         if (Array.isArray(data)) {
           setOrders(data);
@@ -79,7 +79,7 @@ export default function SimulationPage() {
     return acc;
   }, {} as Record<string, number>);
 
-  const peakTotalCapital = Object.keys(capitalBySymbol).length * 10000;
+  const peakTotalCapital = Object.values(capitalBySymbol).reduce((a, b) => a + b, 0);
   const overallRoi = peakTotalCapital > 0 ? (totalPnL / peakTotalCapital) * 100 : 0;
 
   const totalCapitalUsed = activePositions.reduce((acc, o) => {
@@ -93,7 +93,7 @@ export default function SimulationPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-4xl font-bold text-white tracking-tight font-display mb-2 flex items-center gap-3">
-            Simulation Trades <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
+            US Commodities Simulation <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
           </h1>
           <p className="text-slate-400">Real-time simulated dry-run execution tracker and bracket progress.</p>
         </div>
@@ -204,10 +204,10 @@ export default function SimulationPage() {
                 "text-3xl font-bold tracking-tight font-display mb-1",
                 totalPnL >= 0 ? "text-emerald-400 text-shadow-emerald" : "text-red-400 text-shadow-red"
               )}>
-                Rs {totalPnL >= 0 ? "+" : ""}{totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${totalPnL >= 0 ? "+" : ""}{totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                Est. ROI: <span className={overallRoi >= 0 ? "text-emerald-400" : "text-red-400"}>{overallRoi.toFixed(2)}%</span> | Capital: Rs {Math.round(peakTotalCapital).toLocaleString()}
+                Est. ROI: <span className={overallRoi >= 0 ? "text-emerald-400" : "text-red-400"}>{overallRoi.toFixed(2)}%</span> | Capital: ${Math.round(peakTotalCapital).toLocaleString()}
               </p>
               <div className={cn(
                 "absolute -bottom-12 -left-12 w-24 h-24 blur-3xl opacity-20 pointer-events-none",
@@ -225,7 +225,7 @@ export default function SimulationPage() {
               <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
                 {activePositions.length} <span className="text-sm font-medium text-slate-500">running</span>
               </h3>
-              <p className="text-xs text-slate-500">Est. Margin Allocated: Rs {totalCapitalUsed.toLocaleString()}</p>
+              <p className="text-xs text-slate-500">Est. Margin Allocated: ${totalCapitalUsed.toLocaleString()}</p>
               <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-blue-500/10 blur-3xl pointer-events-none" />
             </GlassCard>
 
@@ -310,7 +310,7 @@ export default function SimulationPage() {
                             "text-xl font-bold font-mono tracking-tight",
                             pnl >= 0 ? "text-emerald-400" : "text-red-400"
                           )}>
-                            Rs {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}
+                            ${pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -319,11 +319,11 @@ export default function SimulationPage() {
                       <div className="grid grid-cols-3 gap-4 p-3 bg-white/5 rounded-xl mb-4 border border-white/5">
                         <div>
                           <span className="text-[0.6rem] font-bold text-slate-500 uppercase block">Entry Price</span>
-                          <span className="text-sm font-bold font-mono text-slate-300">Rs {entry.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="text-sm font-bold font-mono text-slate-300">${entry.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div>
                           <span className="text-[0.6rem] font-bold text-slate-500 uppercase block">Last Price (LTP)</span>
-                          <span className="text-sm font-bold font-mono text-white pulse-glow">Rs {ltp.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="text-sm font-bold font-mono text-white pulse-glow">${ltp.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div>
                           <span className="text-[0.6rem] font-bold text-slate-500 uppercase block">Net Dist</span>
@@ -464,12 +464,12 @@ export default function SimulationPage() {
                                 </>
                               )}
                             </td>
-                            <td className="px-6 py-4 text-xs font-bold text-white">Rs {o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
+                            <td className="px-6 py-4 text-xs font-bold text-white">${o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
                             <td className={cn(
                               "px-6 py-4 text-xs font-bold",
                               o.pnl > 0 ? "text-emerald-400" : o.pnl < 0 ? "text-red-400" : "text-slate-400"
                             )}>
-                              {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `Rs ${o.pnl.toFixed(2)}` : "—"}
+                              {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `$${o.pnl.toFixed(2)}` : "—"}
                             </td>
                             <td className="px-6 py-4 text-right">
                               <span className={cn(

@@ -129,8 +129,8 @@ export default function TradesPage() {
           prefix="₹"
         />
         <StatCard 
-          label="Trades" 
-          value={filteredTrades.length} 
+          label="Trades / ROI" 
+          value={`${filteredTrades.length} / ${totalCapital > 0 ? ((totalPnL / totalCapital) * 100).toFixed(2) : "0.00"}%`} 
         />
       </div>
 

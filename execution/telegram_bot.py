@@ -25,8 +25,8 @@ HISTORY_FILE = "telegram_history.json"
 # All alerts go to Dhaval only
 ADMIN_IDS = ["945073334"]
 
-# Trade signals go to everyone
-TRADE_IDS  = ["945073334", "1488710204", "929350168"]
+# Trade signals go to admin only for now
+TRADE_IDS  = ADMIN_IDS
 
 
 def _log_message(text, chat_ids):
@@ -175,6 +175,17 @@ def format_expiry_message(instrument):
         f"has expired after {SIGNAL_EXPIRY_HOURS} hours.\n"
         f"Neither leg was triggered. No action needed."
     )
+
+
+def format_skip_message(instrument, reason):
+    """Alert when a detected signal is skipped."""
+    return (
+        f"⏭ <b>SIGNAL SKIPPED: {instrument}</b>\n\n"
+        f"The scanner detected a potential Blue Candle, but it was skipped.\n"
+        f"<b>Reason:</b> {reason}\n\n"
+        f"🔍 <i>Market volatility or timing check.</i>"
+    )
+
 
 
 def format_startup_message(instruments):

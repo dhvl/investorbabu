@@ -16,11 +16,12 @@ Runs alongside main.py as a separate process.
 import json
 import logging
 import os
+import subprocess
 from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify
 from telegram_bot import send_trade_message, send_message
-from kite_token import get_kite_client
-from config import INSTRUMENTS
+from upstox_broker import get_orders, get_trades, delete_gtt, check_and_cancel_other_gtt
+import config
 
 app = Flask(__name__)
 logging.basicConfig(
@@ -83,22 +84,27 @@ def save_trade_log(trade: dict):
         json.dump(trades, f, indent=2)
 
 
-@app.route("/kite/postback", methods=["POST"])
-def kite_postback():
-    """Receive order update from Zerodha."""
+@app.route("/upstox/postback", methods=["POST"])
+def upstox_postback():
+    """Receive order update from Upstox."""
     try:
         data = request.get_json(force=True) or request.form.to_dict()
         logger.info(f"Postback received: {json.dumps(data)}")
 
         order_id   = str(data.get("order_id", ""))
-        status     = data.get("status", "")
-        symbol     = data.get("tradingsymbol", "")
-        filled_qty = data.get("filled_quantity", 0)
+        status     = str(data.get("status", "")).upper()
+        symbol     = data.get("trading_symbol") or data.get("tradingsymbol") or ""
+        filled_qty = data.get("filled_quantity") or data.get("filled_qty", 0)
         avg_price  = float(data.get("average_price", 0))
         tx_type    = data.get("transaction_type", "")
 
         if not order_id or not status:
             return jsonify({"status": "ignored"}), 200
+
+        # OCO GTT Cancellation: If this was triggered by a GTT leg, delete the other leg
+        gtt_order_id = data.get("gtt_order_id")
+        if gtt_order_id:
+            check_and_cancel_other_gtt(gtt_order_id)
 
         # Load our orders to check if this is our order
         our_orders = load_our_orders()
@@ -152,7 +158,7 @@ def kite_postback():
             send_trade_message(msg)
 
         elif status == "REJECTED":
-            reason = data.get("status_message", "Unknown")
+            reason = data.get("status_message") or data.get("reject_reason", "Unknown")
             msg = (
                 f"⛔ <b>ORDER REJECTED — {symbol}</b>\n\n"
                 f"{tx_type} order rejected\n"
@@ -169,33 +175,38 @@ def kite_postback():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route("/kite/reconcile", methods=["GET"])
+@app.route("/upstox/reconcile", methods=["GET"])
 def reconcile_trades():
-    """Fetch actual P&L and trades directly from Zerodha for today."""
+    """Fetch actual P&L and trades directly from Upstox for today."""
     try:
-        kite      = get_kite_client()
-        positions = kite.positions().get("net", [])
-        trades    = kite.trades()
+        import requests
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {os.getenv('UPSTOX_ACCESS_TOKEN')}"
+        }
+        res_pos = requests.get("https://api.upstox.com/v2/portfolio/get-positions", headers=headers, timeout=10)
+        positions = res_pos.json().get("data", []) if res_pos.status_code == 200 else []
+        trades = get_trades()
 
         # Map positions for easy lookup
-        pos_map = {p["tradingsymbol"]: p for p in positions}
+        pos_map = {p.get("trading_symbol") or p.get("tradingsymbol"): p for p in positions if "trading_symbol" in p or "tradingsymbol" in p}
         
         symbol_stats = {}
         # Use trades to identify what was active today
         for t in trades:
-            symbol = t["tradingsymbol"]
-            if symbol not in INSTRUMENTS:
+            symbol = t.get("trading_symbol") or t.get("tradingsymbol")
+            if not symbol or symbol not in config.INSTRUMENTS:
                 continue
 
             if symbol not in symbol_stats:
                 pos = pos_map.get(symbol, {})
                 symbol_stats[symbol] = {
                     "symbol": symbol,
-                    "pnl": round(pos.get("pnl", 0), 2),
-                    "buy_val": round(pos.get("buy_value", 0), 2),
-                    "sell_val": round(pos.get("sell_value", 0), 2),
-                    "avg_price": pos.get("average_price", 0),
-                    "last_price": pos.get("last_price", 0),
+                    "pnl": round(float(pos.get("pnl", 0)), 2) if pos.get("pnl") is not None else 0.0,
+                    "buy_val": round(float(pos.get("buy_value", 0)), 2) if pos.get("buy_value") is not None else 0.0,
+                    "sell_val": round(float(pos.get("sell_value", 0)), 2) if pos.get("sell_value") is not None else 0.0,
+                    "avg_price": float(pos.get("average_price", 0)) if pos.get("average_price") else 0.0,
+                    "last_price": float(pos.get("last_price", 0)) if pos.get("last_price") else 0.0,
                     "trades": []
                 }
             
@@ -204,19 +215,19 @@ def reconcile_trades():
                 "type": t["transaction_type"],
                 "qty": t["quantity"],
                 "price": t["average_price"],
-                "time": str(t["exchange_timestamp"])
+                "time": str(t.get("exchange_timestamp") or t.get("order_timestamp", ""))
             })
 
         # Add any active positions that didn't have trades today
         for symbol, p in pos_map.items():
-            if symbol in INSTRUMENTS and symbol not in symbol_stats:
+            if symbol in config.INSTRUMENTS and symbol not in symbol_stats:
                 symbol_stats[symbol] = {
                     "symbol": symbol,
-                    "pnl": round(p.get("pnl", 0), 2),
-                    "buy_val": round(p.get("buy_value", 0), 2),
-                    "sell_val": round(p.get("sell_value", 0), 2),
-                    "avg_price": p.get("average_price", 0),
-                    "last_price": p.get("last_price", 0),
+                    "pnl": round(float(p.get("pnl", 0)), 2) if p.get("pnl") is not None else 0.0,
+                    "buy_val": round(float(p.get("buy_value", 0)), 2) if p.get("buy_value") is not None else 0.0,
+                    "sell_val": round(float(p.get("sell_value", 0)), 2) if p.get("sell_value") is not None else 0.0,
+                    "avg_price": float(p.get("average_price", 0)) if p.get("average_price") else 0.0,
+                    "last_price": float(p.get("last_price", 0)) if p.get("last_price") else 0.0,
                     "trades": []
                 }
 
@@ -225,7 +236,7 @@ def reconcile_trades():
         return jsonify({
             "status": "ok",
             "date": datetime.now(IST).strftime("%Y-%m-%d"),
-            "kite_data": results
+            "upstox_data": results
         }), 200
 
     except Exception as e:
@@ -233,36 +244,82 @@ def reconcile_trades():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route("/kite/instruments", methods=["GET", "POST"])
+@app.route("/kite/instruments", methods=["GET", "POST", "DELETE"])
 def manage_instruments():
-    """List or add instruments to instruments.json."""
-    path = os.path.join(os.path.dirname(__file__), 'instruments.json')
+    """List, add, or delete instruments from instruments.json, instruments_us.json, or instruments_crypto.json."""
+    market = request.args.get("market", "in").lower()
+    
+    if market == "us":
+        filename = "instruments_us.json"
+    elif market == "crypto":
+        filename = "instruments_crypto.json"
+    else:
+        filename = "instruments.json"
+        
+    path = os.path.join(os.path.dirname(__file__), filename)
     
     if request.method == "POST":
         try:
             data = request.get_json(force=True)
             symbol = data.get("symbol", "").upper().strip()
-            name   = data.get("name", symbol)
             
             if not symbol:
                 return jsonify({"error": "Symbol is required"}), 400
                 
-            with open(path, "r") as f:
-                instruments = json.load(f)
+            instruments = {}
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    try:
+                        instruments = json.load(f)
+                    except Exception:
+                        pass
             
-            # Add new instrument (e.g. "INFY" -> "NSE:INFY")
-            full_symbol = f"NSE:{symbol}" if ":" not in symbol else symbol
+            # Default formatting rules
+            if market == "in":
+                full_symbol = f"NSE:{symbol}" if ":" not in symbol else symbol
+            else:
+                full_symbol = symbol
+                
             instruments[symbol] = full_symbol
             
             with open(path, "w") as f:
                 json.dump(instruments, f, indent=4)
                 
-            # Reload INSTRUMENTS in memory (for this process)
-            global INSTRUMENTS
-            INSTRUMENTS = instruments
+            # Reload Indian INSTRUMENTS in memory if it was the Indian market
+            if market == "in":
+                config.INSTRUMENTS = instruments
             
-            logger.info(f"Added instrument: {symbol} ({full_symbol})")
+            logger.info(f"Added {market} instrument: {symbol} ({full_symbol})")
             return jsonify({"status": "ok", "message": f"Added {symbol}"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+            
+    elif request.method == "DELETE":
+        try:
+            data = request.get_json(force=True)
+            symbol = data.get("symbol", "").upper().strip()
+            
+            if not symbol:
+                return jsonify({"error": "Symbol is required"}), 400
+                
+            if not os.path.exists(path):
+                return jsonify({"error": "No instruments found"}), 404
+                
+            with open(path, "r") as f:
+                instruments = json.load(f)
+                
+            if symbol in instruments:
+                del instruments[symbol]
+                with open(path, "w") as f:
+                    json.dump(instruments, f, indent=4)
+                
+                if market == "in":
+                    config.INSTRUMENTS = instruments
+                
+                logger.info(f"Deleted {market} instrument: {symbol}")
+                return jsonify({"status": "ok", "message": f"Deleted {symbol}"}), 200
+            else:
+                return jsonify({"error": f"Instrument {symbol} not found"}), 404
         except Exception as e:
             return jsonify({"error": str(e)}), 500
             
@@ -286,6 +343,396 @@ def health():
     }), 200
 
 
+@app.route("/telegram/webhook", methods=["POST"])
+def telegram_webhook():
+    """Receive and handle Telegram user messages (interactive registration)."""
+    try:
+        update = request.get_json(force=True)
+        if not update or "message" not in update:
+            return jsonify({"status": "ignored"}), 200
+
+        message = update["message"]
+        chat = message.get("chat", {})
+        chat_id = str(chat.get("id", ""))
+        text = message.get("text", "").strip()
+
+        if not chat_id or not text:
+            return jsonify({"status": "ignored"}), 200
+
+        # Load states and clients
+        states = {}
+        if os.path.exists("registration_states.json"):
+            try:
+                with open("registration_states.json") as f:
+                    states = json.load(f)
+            except Exception:
+                pass
+
+        clients = {}
+        if os.path.exists("clients.json"):
+            try:
+                with open("clients.json") as f:
+                    clients = json.load(f)
+            except Exception:
+                pass
+
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        telegram_api = f"https://api.telegram.org/bot{bot_token}"
+
+        def send_reply(msg_text):
+            try:
+                requests.post(f"{telegram_api}/sendMessage", json={
+                    "chat_id": chat_id,
+                    "text": msg_text,
+                    "parse_mode": "HTML"
+                }, timeout=10)
+            except Exception as re:
+                logger.error(f"Failed to send Telegram reply: {re}")
+
+        # Check state/intent
+        if text.startswith("/start"):
+            states[chat_id] = "AWAITING_NAME"
+            with open("registration_states.json", "w") as f:
+                json.dump(states, f, indent=2)
+
+            send_reply(
+                "🚀 <b>Welcome to InvestorBabu!</b>\n\n"
+                "I am your automated breakout signal delivery assistant.\n\n"
+                "Please reply directly to this message with your <b>Full Name</b> to register in our backend database."
+            )
+        elif states.get(chat_id) == "AWAITING_NAME":
+            name = text
+            
+            # Load pending clients
+            pending = {}
+            if os.path.exists("pending_clients.json"):
+                try:
+                    with open("pending_clients.json") as f:
+                        pending = json.load(f)
+                except Exception:
+                    pass
+            
+            pending[chat_id] = {
+                "name": name,
+                "requested_at": datetime.now(IST).isoformat()
+            }
+            with open("pending_clients.json", "w") as f:
+                json.dump(pending, f, indent=2)
+
+            # Clear state
+            if chat_id in states:
+                del states[chat_id]
+            with open("registration_states.json", "w") as f:
+                json.dump(states, f, indent=2)
+
+            send_reply(
+                f"⏳ <b>Registration Request Submitted</b>\n\n"
+                f"Thank you, <b>{name}</b>. Your details have been submitted to the administrator for approval.\n"
+                f"Your Chat ID: <code>{chat_id}</code>\n\n"
+                f"You will be notified immediately here once your access is approved."
+            )
+
+            # Notify Admin (Dhaval)
+            admin_token = os.getenv("TELEGRAM_BOT_TOKEN")
+            admin_api = f"https://api.telegram.org/bot{admin_token}"
+            admin_ids = [id.strip() for id in os.getenv("TELEGRAM_ADMIN_CHAT_ID", "945073334").split(",") if id.strip()]
+            admin_msg = (
+                f"🔔 <b>New Registration Request</b>\n\n"
+                f"Name: <b>{name}</b>\n"
+                f"Chat ID: <code>{chat_id}</code>\n\n"
+                f"Please approve this user from your Admin Dashboard."
+            )
+            for aid in admin_ids:
+                try:
+                    requests.post(f"{admin_api}/sendMessage", json={
+                        "chat_id": aid,
+                        "text": admin_msg,
+                        "parse_mode": "HTML"
+                    }, timeout=10)
+                except Exception:
+                    pass
+
+        return jsonify({"status": "ok"}), 200
+
+    except Exception as e:
+        logger.error(f"Telegram webhook error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/clients", methods=["GET"])
+def get_clients():
+    """Retrieve active and pending clients."""
+    try:
+        clients = {}
+        if os.path.exists("clients.json"):
+            with open("clients.json") as f:
+                clients = json.load(f)
+        
+        pending = {}
+        if os.path.exists("pending_clients.json"):
+            with open("pending_clients.json") as f:
+                pending = json.load(f)
+                
+        return jsonify({
+            "status": "ok",
+            "clients": clients,
+            "pending": pending
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/clients/approve", methods=["POST"])
+def approve_client():
+    """Approve a pending client."""
+    try:
+        data = request.get_json(force=True)
+        chat_id = str(data.get("chat_id", ""))
+        name = data.get("name", "")
+        client_type = data.get("type", "chatbot") # "chatbot" or "live"
+        whitelisted = data.get("whitelisted_instruments", [])
+        broker = data.get("broker", "")
+
+        if not chat_id:
+            return jsonify({"status": "error", "message": "Missing Chat ID"}), 400
+
+        # Load existing clients
+        clients = {}
+        if os.path.exists("clients.json"):
+            with open("clients.json") as f:
+                clients = json.load(f)
+
+        # Remove from pending list
+        pending = {}
+        if os.path.exists("pending_clients.json"):
+            with open("pending_clients.json") as f:
+                pending = json.load(f)
+            if chat_id in pending:
+                if not name:
+                    name = pending[chat_id].get("name", "")
+                del pending[chat_id]
+                with open("pending_clients.json", "w") as f:
+                    json.dump(pending, f, indent=2)
+
+        # Save to clients
+        clients[chat_id] = {
+            "name": name,
+            "type": client_type,
+            "whitelisted_instruments": whitelisted
+        }
+        if client_type == "live" and broker:
+            clients[chat_id]["broker"] = broker
+            
+        with open("clients.json", "w") as f:
+            json.dump(clients, f, indent=2)
+
+        # Notify the user on Telegram
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        telegram_api = f"https://api.telegram.org/bot{bot_token}"
+        
+        if client_type == "chatbot":
+            insts_str = ", ".join(whitelisted) if whitelisted else "None configured"
+            msg = (
+                f"🎉 <b>Your Account Has Been Approved!</b>\n\n"
+                f"Congratulations, <b>{name}</b>! The administrator has approved your Telegram account.\n\n"
+                f"⚙️ <b>Setup:</b> Chat Bot Only\n"
+                f"📦 <b>Whitelisted Assets:</b> <code>{insts_str}</code>\n\n"
+                f"You will receive breakout signal alerts directly in this chat."
+            )
+        else:
+            msg = (
+                f"🎉 <b>Your Account Has Been Approved!</b>\n\n"
+                f"Congratulations, <b>{name}</b>! The administrator has approved your live trading account.\n\n"
+                f"⚙️ <b>Setup:</b> Live Trading\n"
+                f"💼 <b>Broker:</b> <code>{broker.upper()}</code>\n\n"
+                f"You will receive signal notifications and automated order executions."
+            )
+            
+        try:
+            requests.post(f"{telegram_api}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": msg,
+                "parse_mode": "HTML"
+            }, timeout=10)
+        except Exception as te:
+            logger.error(f"Failed to notify client of approval: {te}")
+
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/clients/update", methods=["POST"])
+def update_client():
+    """Update active client configuration."""
+    try:
+        data = request.get_json(force=True)
+        chat_id = str(data.get("chat_id", ""))
+        name = data.get("name", "")
+        client_type = data.get("type", "chatbot")
+        whitelisted = data.get("whitelisted_instruments", [])
+        broker = data.get("broker", "")
+
+        if not chat_id:
+            return jsonify({"status": "error", "message": "Missing Chat ID"}), 400
+
+        clients = {}
+        if os.path.exists("clients.json"):
+            with open("clients.json") as f:
+                clients = json.load(f)
+
+        if chat_id not in clients:
+            return jsonify({"status": "error", "message": "Client not found"}), 404
+
+        clients[chat_id] = {
+            "name": name or clients[chat_id].get("name", "Unknown"),
+            "type": client_type,
+            "whitelisted_instruments": whitelisted
+        }
+        if client_type == "live" and broker:
+            clients[chat_id]["broker"] = broker
+
+        with open("clients.json", "w") as f:
+            json.dump(clients, f, indent=2)
+
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/clients/delete", methods=["POST"])
+def delete_client():
+    """Remove a client from active or pending lists."""
+    try:
+        data = request.get_json(force=True)
+        chat_id = str(data.get("chat_id", ""))
+
+        if not chat_id:
+            return jsonify({"status": "error", "message": "Missing Chat ID"}), 400
+
+        # Remove from active
+        clients = {}
+        if os.path.exists("clients.json"):
+            with open("clients.json") as f:
+                clients = json.load(f)
+            if chat_id in clients:
+                del clients[chat_id]
+                with open("clients.json", "w") as f:
+                    json.dump(clients, f, indent=2)
+
+        # Remove from pending
+        pending = {}
+        if os.path.exists("pending_clients.json"):
+            with open("pending_clients.json") as f:
+                pending = json.load(f)
+            if chat_id in pending:
+                del pending[chat_id]
+                with open("pending_clients.json", "w") as f:
+                    json.dump(pending, f, indent=2)
+
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+
+@app.route("/api/alerts/tradingview", methods=["POST"])
+def tradingview_alert():
+    """Receive signal from TradingView alert email parser."""
+    try:
+        data = request.get_json(force=True)
+        symbol = str(data.get("instrument", "")).upper().strip()
+        price = float(data.get("price", 0))
+        high = float(data.get("high", 0))
+        low = float(data.get("low", 0))
+        c_time = str(data.get("candle_time", "")).strip()
+        c_date = str(data.get("candle_date", datetime.now(IST).strftime("%d %b %Y"))).strip()
+
+        if not symbol or not price or not high or not low or not c_time:
+            return jsonify({"status": "error", "message": "Missing required fields"}), 400
+
+        # Check if symbol is US/Crypto or Indian
+        is_us = symbol in ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD", "BTCUSD"]
+        
+        # Calculate brackets
+        tick = {
+            "XAGUSD": 0.005,
+            "XAUUSD": 0.10,
+            "OILUSD": 0.01,
+            "CUCUSD": 0.0005,
+            "BTCUSD": 1.0
+        }.get(symbol, 0.05) if is_us else 0.05
+        
+        dec_places = len(str(tick).split('.')[1]) if '.' in str(tick) else 2
+        
+        b_entry = round(high + tick, dec_places)
+        s_entry = round(low - tick, dec_places)
+        b_sl = float(low)
+        s_sl = float(high)
+        
+        buy_target = round(b_entry * 1.01, dec_places)
+        sell_target = round(s_entry * 0.99, dec_places)
+
+        signal = {
+            "instrument": symbol,
+            "price": price,
+            "high": high,
+            "low": low,
+            "candle_date": c_date,
+            "candle_time": c_time,
+            "detected_at": datetime.now(IST).isoformat(),
+            "screenshot": "screenshots/TV_ALERT_EMAIL.png",
+            "confidence": "high",
+            "spread_pct": round(((high - low) / price) * 100, 3),
+            "buy_entry": b_entry,
+            "buy_target": buy_target,
+            "buy_pyramid": buy_target,
+            "buy_stop_loss": b_sl,
+            "sell_entry": s_entry,
+            "sell_target": sell_target,
+            "sell_pyramid": sell_target,
+            "sell_stop_loss": s_sl
+        }
+
+        # Save to correct database
+        db_path = "us_signals.json" if is_us else "signals.json"
+        signals = []
+        if os.path.exists(db_path):
+            try:
+                with open(db_path, "r") as f:
+                    signals = json.load(f)
+            except Exception:
+                pass
+                
+        # Remove existing duplicates on date AND time to prevent duplicate entry
+        signals = [s for s in signals if not (s.get("instrument") == symbol and s.get("candle_date") == c_date and s.get("candle_time") == c_time)]
+        signals.append(signal)
+        
+        with open(db_path, "w") as f:
+            json.dump(signals, f, indent=2)
+            
+        logger.info(f"Successfully processed TradingView alert for {symbol} at {c_time}")
+
+        # Send Telegram notification
+        from telegram_bot import format_signal_message, send_message
+        msg = format_signal_message(signal)
+        send_message(msg)
+
+        # Trigger simulation replay in background
+        replay_script = "us_replay_today.py" if is_us else "replay_today.py"
+        try:
+            subprocess.Popen(["python3.11", replay_script])
+            logger.info(f"Triggered background replay of {replay_script}")
+        except Exception as re:
+            logger.error(f"Failed to start background replay: {re}")
+
+        return jsonify({"status": "ok"}), 200
+
+    except Exception as e:
+        logger.error(f"TradingView alert error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/", methods=["GET"])
 def index():
     return jsonify({"service": "investorbabu.com API", "status": "running"}), 200
@@ -293,4 +740,15 @@ def index():
 
 if __name__ == "__main__":
     logger.info("Starting Bluecandle Postback Server on port 5000...")
+    # Set webhook on startup
+    import requests
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if token and "YOUR_" not in token:
+        try:
+            url = "https://api.investorbabu.com/telegram/webhook"
+            requests.post(f"https://api.telegram.org/bot{token}/setWebhook?url={url}", timeout=10)
+            logger.info(f"Telegram Webhook configured successfully to {url}")
+        except Exception as we:
+            logger.error(f"Failed to configure Telegram Webhook: {we}")
+            
     app.run(host="0.0.0.0", port=5000, debug=False)

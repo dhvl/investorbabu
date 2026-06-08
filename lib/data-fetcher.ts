@@ -235,9 +235,139 @@ export function getSimulatedOrders() {
   const filePath = path.join(DATA_DIR, 'simulated_orders.json');
   if (!fs.existsSync(filePath)) return [];
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const orders = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return orders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
   } catch {
     return [];
   }
+}
+
+export function getUsSimulatedOrders() {
+  const filePath = path.join(DATA_DIR, 'us_simulated_orders.json');
+  let allOrders: any[] = [];
+  
+  // Active today's simulated orders
+  if (fs.existsSync(filePath)) {
+    try {
+      const liveOrders = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  
+  // Historical trades
+  if (fs.existsSync(DATA_DIR)) {
+    const files = fs.readdirSync(DATA_DIR);
+    const tradeFiles = files.filter(f => f.startsWith('us_trades_') && f.endsWith('.json'));
+    
+    tradeFiles.forEach(file => {
+      try {
+        const dateStrRaw = file.replace('us_trades_', '').replace('.json', '');
+        // format to "19 May 2026"
+        const year = dateStrRaw.slice(0, 4);
+        const monthNum = dateStrRaw.slice(4, 6);
+        const day = dateStrRaw.slice(6, 8);
+        const dateObj = new Date(`${year}-${monthNum}-${day}`);
+        const formattedDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
+        
+        const fPath = path.join(DATA_DIR, file);
+        const pastTrades = JSON.parse(fs.readFileSync(fPath, 'utf8'));
+        
+        pastTrades.forEach((t: any) => {
+          allOrders.push({
+            symbol: t.symbol,
+            date: formattedDate,
+            time: t.time,
+            plan: t.plan || "basic",
+            active_leg: t.transaction_type,
+            buy_qty: t.quantity,
+            sell_qty: t.quantity,
+            entry_price: t.entry_price,
+            exit_price: t.exit_price,
+            pnl: t.pnl,
+            status: t.status,
+            verified: false,
+            buy_entry: t.entry_price || 0,
+            buy_target: null,
+            buy_stop_loss: t.exit_price || 0,
+            sell_entry: t.entry_price || 0,
+            sell_target: null,
+            sell_stop_loss: t.exit_price || 0,
+            ltp: t.exit_price || 0,
+            is_sar: false
+          });
+        });
+      } catch (err) {
+        console.error("Error reading US history", file, err);
+      }
+    });
+  }
+  
+  return allOrders.filter(o => o.symbol !== "BTCUSD");
+}
+
+export function getCryptoSimulatedOrders() {
+  const filePath = path.join(DATA_DIR, 'us_simulated_orders.json');
+  let allOrders: any[] = [];
+  
+  // Active today's simulated orders
+  if (fs.existsSync(filePath)) {
+    try {
+      const liveOrders = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  
+  // Historical trades
+  if (fs.existsSync(DATA_DIR)) {
+    const files = fs.readdirSync(DATA_DIR);
+    const tradeFiles = files.filter(f => f.startsWith('us_trades_') && f.endsWith('.json'));
+    
+    tradeFiles.forEach(file => {
+      try {
+        const dateStrRaw = file.replace('us_trades_', '').replace('.json', '');
+        const year = dateStrRaw.slice(0, 4);
+        const monthNum = dateStrRaw.slice(4, 6);
+        const day = dateStrRaw.slice(6, 8);
+        const dateObj = new Date(`${year}-${monthNum}-${day}`);
+        const formattedDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
+        
+        const fPath = path.join(DATA_DIR, file);
+        const pastTrades = JSON.parse(fs.readFileSync(fPath, 'utf8'));
+        
+        pastTrades.forEach((t: any) => {
+          allOrders.push({
+            symbol: t.symbol,
+            date: formattedDate,
+            time: t.time,
+            plan: t.plan || "basic",
+            active_leg: t.transaction_type,
+            buy_qty: t.quantity,
+            sell_qty: t.quantity,
+            entry_price: t.entry_price,
+            exit_price: t.exit_price,
+            pnl: t.pnl,
+            status: t.status,
+            verified: false,
+            buy_entry: t.entry_price || 0,
+            buy_target: null,
+            buy_stop_loss: t.exit_price || 0,
+            sell_entry: t.entry_price || 0,
+            sell_target: null,
+            sell_stop_loss: t.exit_price || 0,
+            ltp: t.exit_price || 0,
+            is_sar: false
+          });
+        });
+      } catch (err) {
+        console.error("Error reading US history", file, err);
+      }
+    });
+  }
+  
+  return allOrders.filter(o => o.symbol === "BTCUSD");
 }
 

@@ -32,3 +32,34 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Trading & simulation raw files
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+
+# Remote/Local keys
+*.key
+
+# Screenshots & images
+*.png
+/screenshots/
+
+# Temporary run/profiles
+.tmp/
+browser_profile/
+/storage_state.json
+/storage_state_us.json
+
+# Scratch files we don't want to track
+/scratch/
+/*.py
+!/config_remote.py
+!/postback_server_remote.py
+!/simulation_tracker.py
+!/us_simulation_tracker.py
+!/main.py
+!/db_helper.py
+!/execution/telegram_bot.py
+

@@ -43,17 +43,17 @@ export default function SignalsPage() {
     fetchSignals();
   }, []);
 
-  const uniqueDates = Array.from(new Set(signals.map(s => s.date))) as string[];
-  uniqueDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  const uniqueDates = Array.from(new Set(signals.map((s: any) => s.date))) as string[];
+  uniqueDates.sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
 
-  const filteredSignals = signals.filter(s => {
+  const filteredSignals = signals.filter((s: any) => {
     const matchesDate = !selectedDate || s.date === selectedDate;
     const matchesSearch = !search || s.stock.toLowerCase().includes(search.toLowerCase());
     return matchesDate && matchesSearch;
   });
 
   // Group signals by instrument
-  const groupedSignals = filteredSignals.reduce((acc, signal) => {
+  const groupedSignals = filteredSignals.reduce((acc: Record<string, any[]>, signal: any) => {
     if (!acc[signal.stock]) {
       acc[signal.stock] = [];
     }
@@ -117,7 +117,7 @@ export default function SignalsPage() {
           {instrumentNames.map((name) => {
             const group = groupedSignals[name];
             // Sort detections by time (descending)
-            group.sort((a, b) => b.time.localeCompare(a.time));
+            group.sort((a: any, b: any) => b.time.localeCompare(a.time));
             const latest = group[0];
 
             return (
@@ -135,7 +135,7 @@ export default function SignalsPage() {
 
                 {/* List of detections */}
                 <div className="flex flex-col">
-                  {group.map((signal, idx) => (
+                  {group.map((signal: any, idx: number) => (
                     <div 
                       key={signal.id} 
                       className={cn(
@@ -149,30 +149,25 @@ export default function SignalsPage() {
                           <Clock className="w-3 h-3 text-slate-500" />
                           <span className="text-xs font-bold text-white">{signal.time}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        
+                        <div className="flex items-center gap-1.5">
+                          <div className="px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded text-[0.6rem] font-mono font-bold text-emerald-400">
+                            H {signal.high.toLocaleString()}
+                          </div>
+                          <div className="px-1.5 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-[0.6rem] font-mono font-bold text-red-400">
+                            L {signal.low.toLocaleString()}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
                           <span className="text-[0.6rem] font-bold text-slate-500 uppercase">Spread:</span>
                           <span className="text-xs font-mono text-slate-300">{signal.spread}</span>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-widest">H: ₹{signal.high.toLocaleString()}</span>
-                          <div className="h-1 bg-emerald-500/20 rounded-full overflow-hidden">
-                             <div className="h-full bg-emerald-500 w-full opacity-50" />
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[0.55rem] font-bold text-slate-500 uppercase tracking-widest">L: ₹{signal.low.toLocaleString()}</span>
-                          <div className="h-1 bg-red-500/20 rounded-full overflow-hidden">
-                             <div className="h-full bg-red-500 w-full opacity-50" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                         <Badge variant={signal.confidence === "High" ? "success" : "info"} className="text-[0.55rem] px-1 py-0">
-                            {signal.confidence}
+                      <div className="flex justify-between items-center mt-1">
+                         <Badge variant={signal.confidence?.toLowerCase() === "high" ? "success" : "info"} className="text-[0.55rem] px-1.5 py-0">
+                            {signal.confidence} Confidence
                          </Badge>
                          <span className="text-[0.55rem] font-bold text-slate-600 uppercase italic">{signal.status}</span>
                       </div>

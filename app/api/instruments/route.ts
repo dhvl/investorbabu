@@ -2,21 +2,35 @@ import { NextResponse } from 'next/server';
 
 const KITE_API_URL = 'http://127.0.0.1:5000/kite/instruments';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const response = await fetch(KITE_API_URL, { cache: 'no-store' });
+    const { searchParams } = new URL(request.url);
+    const market = searchParams.get('market') || 'in';
+    
+    const response = await fetch(`${KITE_API_URL}?market=${market}`, { cache: 'no-store' });
     if (!response.ok) throw new Error('Failed to fetch instruments');
     const data = await response.json();
     
     // Convert dictionary format to array for UI
-    const instruments = Object.keys(data).map((symbol, i) => ({
-      id: i + 1,
-      symbol,
-      exchange: data[symbol].split(':')[0] || 'NSE',
-      status: 'Active',
-      lastSignal: '---', // Will be populated by separate call if needed
-      isActive: true
-    }));
+    const instruments = Object.keys(data).map((symbol, i) => {
+      let exchange = 'NSE';
+      if (market === 'us') {
+        exchange = 'US';
+      } else if (market === 'crypto') {
+        exchange = 'CRYPTO';
+      } else {
+        exchange = data[symbol].split(':')[0] || 'NSE';
+      }
+      
+      return {
+        id: i + 1,
+        symbol,
+        exchange,
+        status: 'Active',
+        lastSignal: '---',
+        isActive: true
+      };
+    });
     
     return NextResponse.json(instruments);
   } catch (error) {
@@ -26,8 +40,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const market = searchParams.get('market') || 'in';
+    
     const body = await request.json();
-    const response = await fetch(KITE_API_URL, {
+    const response = await fetch(`${KITE_API_URL}?market=${market}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -43,8 +60,11 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const market = searchParams.get('market') || 'in';
+    
     const body = await request.json();
-    const response = await fetch(KITE_API_URL, {
+    const response = await fetch(`${KITE_API_URL}?market=${market}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)

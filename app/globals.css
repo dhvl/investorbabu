@@ -11,12 +11,8 @@
 }
 
 body {
-  background: #0a0a0f;
-  background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(0, 212, 255, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(124, 58, 237, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
-  background-attachment: fixed;
+  background: #0a0a0f url('/bg-abstract.png') no-repeat center center fixed;
+  background-size: cover;
   color: #f8fafc;
   font-family: 'Cabinet Grotesk', sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -33,31 +29,52 @@ h1, h2, h3, h4, .font-display {
 
 @layer components {
   .glass, .glass-panel {
-    --c-glass: rgba(255, 255, 255, 0.03);
-    --c-light: rgba(255, 255, 255, 0.08);
-    --c-dark: rgba(0, 0, 0, 0.3);
+    --c-glass: rgba(10, 10, 15, 0.25);
+    --c-light: rgba(255, 255, 255, 0.1);
+    --c-dark: rgba(0, 0, 0, 0.4);
+    --card-glow: rgba(59, 130, 246, 0.15); /* Default blue glow */
     
+    position: relative;
     background-color: var(--c-glass);
-    backdrop-filter: blur(12px) saturate(160%) url(#switcher);
-    -webkit-backdrop-filter: blur(12px) saturate(160%);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     
     box-shadow: 
       /* Inner highlights (Top/Left) */
       inset 0px 1px 1px 0px var(--c-light),
       inset -1px -1px 0px -1px rgba(255, 255, 255, 0.02),
       /* Depth shadows */
-      0px 4px 24px -1px rgba(0, 0, 0, 0.2);
+      0px 4px 24px -1px rgba(0, 0, 0, 0.3);
     
     transition: all 400ms cubic-bezier(1, 0, 0.4, 1);
   }
   
+  .glass-panel::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at top right, var(--card-glow) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.8;
+    transition: opacity 400ms ease;
+  }
+  
+  .glass-panel:hover::before {
+    opacity: 1;
+    background: radial-gradient(circle at top right, var(--card-glow) 0%, transparent 80%);
+  }
+  
   .glass-panel:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(20, 20, 25, 0.3);
     box-shadow: 
       inset 0px 1px 1px 0px rgba(255, 255, 255, 0.15),
-      0px 12px 40px -2px rgba(0, 0, 0, 0.3);
-    border-color: rgba(255, 255, 255, 0.1);
+      0px 12px 40px -2px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.15);
   }
 
   .text-gradient {
@@ -84,11 +101,11 @@ h1, h2, h3, h4, .font-display {
 }
 
 /* Animations */
-@keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+@keyframes pulse-gentle {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 15px rgba(59, 130, 246, 0); }
+  50% { opacity: 0.9; transform: scale(1.05); box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
 }
 
-.animate-pulse-soft {
-  animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.animate-pulse-gentle {
+  animation: pulse-gentle 2s ease-in-out infinite;
 }

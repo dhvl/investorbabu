@@ -11,7 +11,8 @@ import {
   Package,
   LogOut,
   MessageSquare,
-  Terminal
+  Terminal,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -71,6 +72,8 @@ export default function DashboardLayout({
     { id: "signals", label: "Signals", icon: Bell, href: "/dashboard/signals" },
     { id: "trades", label: "Trades", icon: History, href: "/dashboard/trades" },
     { id: "simulation", label: "Simulation", icon: Activity, href: "/dashboard/simulation" },
+    { id: "us-simulation", label: "US Simulations", icon: Activity, href: "/dashboard/us-simulation" },
+    { id: "crypto-simulation", label: "Crypto Simulations", icon: Activity, href: "/dashboard/crypto-simulation" },
     { id: "stocks", label: "Stocks", icon: Package, href: "/dashboard/stocks" },
     { id: "logs", label: "System Logs", icon: Terminal, href: "/dashboard/logs" },
   ];
@@ -119,6 +122,18 @@ export default function DashboardLayout({
               {hasNew && <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#0a0a0f]" />}
             </div>
             <span className="font-medium text-sm">Notification Logs</span>
+          </Link>
+          <Link 
+            href="/dashboard/clients" 
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl transition-all",
+              pathname === "/dashboard/clients" 
+                ? "bg-white/10 text-white shadow-[0_0_15px_rgba(255,255,255,0.05)]" 
+                : "text-slate-400 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <Users className="w-5 h-5" />
+            <span className="font-medium text-sm">Clients</span>
           </Link>
           <Link href="/dashboard/settings" className="flex items-center gap-3 px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all">
             <Settings className="w-5 h-5" />

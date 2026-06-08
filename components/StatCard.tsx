@@ -13,9 +13,10 @@ interface StatCardProps {
   prefix?: string;
   suffix?: string;
   verified?: boolean;
+  glowColor?: string;
 }
 
-export function StatCard({ label, value, trend, icon, prefix = "", suffix = "", verified }: StatCardProps) {
+export function StatCard({ label, value, trend, icon, prefix = "", suffix = "", verified, glowColor }: StatCardProps) {
   const numericValue = typeof value === "number" ? value : parseFloat(value.toString().replace(/[^0-9.-]+/g, ""));
   const count = useSpring(0, { stiffness: 100, damping: 30 });
   
@@ -40,7 +41,7 @@ export function StatCard({ label, value, trend, icon, prefix = "", suffix = "", 
   }, [numericValue, count]);
 
   return (
-    <GlassCard className="group relative overflow-hidden transition-all hover:bg-white/[0.03] border-white/5">
+    <GlassCard glowColor={glowColor} className="group relative overflow-hidden transition-all hover:bg-white/[0.03] border-white/5">
       <div className="flex flex-col">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[0.65rem] font-bold tracking-[0.15em] uppercase text-slate-500">

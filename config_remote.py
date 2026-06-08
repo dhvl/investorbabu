@@ -8,6 +8,7 @@ load_dotenv()
 TV_USERNAME      = os.getenv("TV_USERNAME")
 TV_PASSWORD      = os.getenv("TV_PASSWORD")
 TV_CHART_URL     = os.getenv("TV_CHART_URL", "https://www.tradingview.com/chart/F74VLK7x/")
+TV_CHART_URL_US  = os.getenv("TV_CHART_URL_US", "https://www.tradingview.com/chart/4WoNWanm/")
 
 # ── Telegram ──────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -16,7 +17,6 @@ TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
 # ── Anthropic ─────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-# ── Instruments ───────────────────────────────────────────────
 def load_instruments():
     import json
     path = os.path.join(os.path.dirname(__file__), 'instruments.json')
@@ -26,6 +26,13 @@ def load_instruments():
     return {}
 
 INSTRUMENTS = load_instruments()
+
+def reload_instruments():
+    global INSTRUMENTS
+    loaded = load_instruments()
+    if loaded:
+        INSTRUMENTS.clear()
+        INSTRUMENTS.update(loaded)
 
 # ── Scan Settings ─────────────────────────────────────────────
 SCAN_INTERVAL_MINUTES = int(os.getenv("SCAN_INTERVAL_MINUTES", 15))

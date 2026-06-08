@@ -78,29 +78,33 @@ export default function DashboardOverview() {
           trend={summary?.pnl_pct}
           icon={<Wallet className="w-5 h-5" />}
           verified={summary?.verified}
+          glowColor="rgba(16, 185, 129, 0.25)"
         />
         <StatCard 
           label="Total Executions" 
           value={summary?.total_trades || 0} 
           icon={<Activity className="w-5 h-5" />}
           verified={summary?.verified}
+          glowColor="rgba(245, 158, 11, 0.25)"
         />
         <StatCard 
           label="Win Rate" 
           value={`${summary?.win_rate || 0}%`} 
           icon={<TrendingUp className="w-5 h-5" />}
           verified={summary?.verified}
+          glowColor="rgba(168, 85, 247, 0.25)"
         />
         <StatCard 
           label="Capital Base" 
           value={10000} 
           prefix="₹"
           icon={<Wallet className="w-4 h-4" />}
+          glowColor="rgba(59, 130, 246, 0.25)"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <GlassCard className="lg:col-span-2 min-h-[400px] flex flex-col p-8 overflow-hidden relative group">
+        <GlassCard glowColor="rgba(16, 185, 129, 0.15)" className="lg:col-span-2 min-h-[400px] flex flex-col p-8 overflow-hidden relative group">
           <div className="absolute top-[10%] right-[6%] opacity-[0.05] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
              <TrendingUp className="w-64 h-64 text-blue-500" />
           </div>
@@ -111,7 +115,7 @@ export default function DashboardOverview() {
           </div>
         </GlassCard>
 
-        <GlassCard className="flex flex-col p-8 border-white/5">
+        <GlassCard glowColor="rgba(168, 85, 247, 0.15)" className="flex flex-col p-8 border-white/5">
           <h3 className="text-xl font-bold text-white mb-2 font-display">Core Infrastructure</h3>
           <p className="text-slate-500 text-sm mb-8">Monitoring active algorithmic modules.</p>
           

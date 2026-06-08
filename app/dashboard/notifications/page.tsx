@@ -16,6 +16,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const CHAT_NAMES: Record<string, string> = {
+  "945073334": "Dhaval (Admin)",
+  "1488710204": "Suchit (Team)",
+  "929350198": "Eashaan (Team)",
+  "8208852056": "Ganesh (Client)"
+};
+
 interface Notification {
   timestamp: string;
   chat_ids: string[];
@@ -27,6 +34,7 @@ export default function NotificationsPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTooltip, setActiveTooltip] = useState<number | null>(null);
 
   useEffect(() => {
     fetchNotifications();
@@ -146,12 +154,39 @@ export default function NotificationsPage() {
                     </span>
                   </div>
                   
+                  {/* Active Tooltip Map of Chat IDs to Names */}
                   <div className="flex items-center gap-2">
                     <div className="p-2 rounded-lg bg-white/5">
                       {getIcon(notif.text)}
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-[0.6rem] font-bold text-slate-500 uppercase tracking-tight">Recipients</span>
+                    <div className="flex flex-col relative">
+                      <span className="flex items-center gap-1 text-[0.6rem] font-bold text-slate-500 uppercase tracking-tight">
+                        Recipients
+                        <div className="relative inline-block group">
+                          <Info 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveTooltip(activeTooltip === idx ? null : idx);
+                            }}
+                            className="w-3 h-3 text-slate-400 hover:text-white cursor-pointer transition-colors" 
+                          />
+                          {/* Tooltip Card */}
+                          <div className={cn(
+                            "absolute bottom-full left-0 mb-2 bg-slate-950/90 backdrop-blur-md border border-white/10 text-[0.65rem] text-slate-200 px-3 py-2 rounded-xl whitespace-nowrap shadow-2xl z-50 transition-all duration-200 pointer-events-none sm:group-hover:opacity-100 sm:group-hover:pointer-events-auto",
+                            activeTooltip === idx ? "opacity-100 pointer-events-auto scale-100" : "opacity-0 scale-95 origin-bottom-left"
+                          )}>
+                            <div className="font-bold text-slate-400 mb-1 border-b border-white/5 pb-1">Broadcast List</div>
+                            <ul className="space-y-1">
+                              {notif.chat_ids.map((id) => (
+                                <li key={id} className="flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse" />
+                                  {CHAT_NAMES[id] || `User (${id})`}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </span>
                       <span className="text-[0.6rem] text-slate-400">
                         {notif.chat_ids.length === 1 ? "Admin Only" : `Broadcast (${notif.chat_ids.length})`}
                       </span>
