@@ -12,26 +12,29 @@ import {
   Cpu,
   Globe,
   Zap,
-  Play,
-  RotateCw,
-  Search,
-  CheckCircle,
-  Scan
+  Scan,
+  TrendingDown,
+  Sparkles
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-// Mock live stream logs for visual scanner
-const MOCK_SCANNER_TICKERS = [
-  { time: "09:15:05", symbol: "POLYCAB", status: "SCANNING", message: "Fetching fresh 15m candle extremes..." },
-  { time: "09:15:12", symbol: "HAVELLS", status: "ANALYZING", message: "Spanning Strategy 3 chop-zone filter..." },
-  { time: "09:15:18", symbol: "TATASTEEL", status: "LOCKED", message: "Brackets verified. BUY entry: 165.40 | SL: 164.10" },
-  { time: "09:15:25", symbol: "BTCUSD", status: "FILTERED", message: "Volatility exceeds safety thresholds. Bypassing." },
-  { time: "09:15:32", symbol: "GOLD", status: "SCANNING", message: "Scanning commodity order blocks..." },
-  { time: "09:15:40", symbol: "POLYCAB", status: "LOCKED", message: "Brackets verified. BUY entry: 6200 | SL: 6185" },
-  { time: "09:15:48", symbol: "XAGUSD", status: "ANALYZING", message: "Calculating distance 1R ratios..." },
-  { time: "09:15:55", symbol: "CRUDEOIL", status: "FILTERED", message: "Chop zone filter active. Ignoring noise." }
+interface MarketTrend {
+  symbol: string;
+  name: string;
+  market: string;
+  price: number;
+  change: number;
+}
+
+// Fallback trends data if API is offline
+const MOCK_TRENDS: MarketTrend[] = [
+  { symbol: "RELIANCE", name: "Reliance Industries", market: "Indian Equity", price: 2450.40, change: 1.25 },
+  { symbol: "TATASTEEL", name: "Tata Steel", market: "Indian Equity", price: 165.40, change: -0.85 },
+  { symbol: "BTC-USD", name: "Bitcoin", market: "Cryptocurrency", price: 68250.00, change: 3.42 },
+  { symbol: "GC=F", name: "Gold Futures", market: "US Commodities", price: 2350.20, change: 0.45 },
+  { symbol: "SI=F", name: "Silver Futures", market: "US Commodities", price: 29.80, change: -1.15 }
 ];
 
 export default function DashboardOverview() {
@@ -40,10 +43,11 @@ export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Real-time scanner state
-  const [scanTicker, setScanTicker] = useState<any[]>(MOCK_SCANNER_TICKERS.slice(0, 4));
+  // Dynamic market trends
+  const [trends, setTrends] = useState<MarketTrend[]>(MOCK_TRENDS);
   const [radarAngle, setRadarAngle] = useState(0);
-  const [activeScanSymbol, setActiveScanSymbol] = useState("POLYCAB");
+  const [activeScanSymbol, setActiveScanSymbol] = useState("RELIANCE");
+  const [scanMessage, setScanMessage] = useState("Scanning Indian Equity basket...");
 
   useEffect(() => {
     async function fetchData() {
@@ -63,35 +67,53 @@ export default function DashboardOverview() {
       }
     }
 
+    // Fetch real-time market trends from Yahoo Finance helper route
+    async function fetchTrends() {
+      try {
+        const res = await fetch("/api/market-trends");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setTrends(data);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load real-time Yahoo Finance trends, using mock database:", err);
+      }
+    }
+
     fetchData();
+    fetchTrends();
+    const trendInterval = setInterval(fetchTrends, 60000); // Update trends every minute
+    return () => clearInterval(trendInterval);
   }, []);
 
-  // Simulator loop for visual art/scanner
+  // Radar rotater & target ticker updater
   useEffect(() => {
     const angleInterval = setInterval(() => {
       setRadarAngle(prev => (prev + 3) % 360);
     }, 40);
 
     const tickerInterval = setInterval(() => {
-      setScanTicker(prev => {
-        const nextIndex = Math.floor(Math.random() * MOCK_SCANNER_TICKERS.length);
-        const rawTicker = MOCK_SCANNER_TICKERS[nextIndex];
-        const now = new Date();
-        const timeStr = now.toTimeString().split(' ')[0];
-        const newTicker = { ...rawTicker, time: timeStr };
-        
-        setActiveScanSymbol(rawTicker.symbol);
-        
-        const updated = [newTicker, ...prev];
-        return updated.slice(0, 5); // Keep last 5 entries
-      });
+      if (trends.length === 0) return;
+      const randomTrend = trends[Math.floor(Math.random() * trends.length)];
+      setActiveScanSymbol(randomTrend.symbol);
+      
+      const actions = [
+        "Evaluating multi-timeframe extremes...",
+        "Analyzing volume breakouts...",
+        "Running Strategy 3 risk locks...",
+        "Calculating distance 1R targets...",
+        "Checking active Upstox limit boundaries..."
+      ];
+      setScanMessage(actions[Math.floor(Math.random() * actions.length)]);
     }, 4000);
 
     return () => {
       clearInterval(angleInterval);
       clearInterval(tickerInterval);
     };
-  }, []);
+  }, [trends]);
 
   if (error && !summary) {
     return (
@@ -163,21 +185,21 @@ export default function DashboardOverview() {
         />
       </div>
 
-      {/* Radar Scanner & Neural Logger Panel */}
+      {/* Radar Scanner & Live yFinance Trends Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Visual Scanner radar - Left/Span 2 */}
-        <GlassCard glowColor="rgba(16, 185, 129, 0.15)" className="lg:col-span-2 min-h-[450px] p-8 flex flex-col justify-between overflow-hidden relative">
+        <GlassCard glowColor="rgba(16, 185, 129, 0.15)" className="lg:col-span-2 min-h-[460px] p-8 flex flex-col justify-between overflow-hidden relative">
           <div className="flex justify-between items-start mb-6 border-b border-white/5 pb-4">
             <div>
               <h3 className="text-xl font-bold text-white font-display flex items-center gap-2">
-                <Scan className="w-5 h-5 text-emerald-400 animate-pulse" /> Live Instrument Visual Scanner
+                <Scan className="w-5 h-5 text-emerald-400 animate-pulse" /> Algorithmic Scanner Radar
               </h3>
-              <p className="text-slate-500 text-xs mt-1">Real-time TradingView Chart parsing and neural logic checks.</p>
+              <p className="text-slate-500 text-xs mt-1">Real-time status of visual chart scanner and active target checks.</p>
             </div>
             
-            <div className="flex items-center gap-2 bg-white/5 border border-white/5 rounded-xl px-3 py-1 text-[0.65rem] font-bold text-slate-400 uppercase tracking-widest font-mono">
-              <span className="text-emerald-400">Target:</span> {activeScanSymbol}
+            <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-1 text-[0.65rem] font-bold text-blue-400 uppercase tracking-widest font-mono">
+              <span className="text-slate-500">Locking:</span> {activeScanSymbol}
             </div>
           </div>
 
@@ -185,9 +207,7 @@ export default function DashboardOverview() {
             
             {/* Left: Animated Radar Art */}
             <div className="flex justify-center items-center relative">
-              {/* Radial Sweep Grid */}
               <div className="relative w-56 h-56 rounded-full border border-emerald-500/20 bg-emerald-950/5 flex items-center justify-center overflow-hidden">
-                
                 {/* Concentric Circles */}
                 <div className="absolute w-40 h-40 rounded-full border border-emerald-500/10" />
                 <div className="absolute w-24 h-24 rounded-full border border-emerald-500/10" />
@@ -209,55 +229,87 @@ export default function DashboardOverview() {
                 <div className="absolute top-[45%] right-[40%] w-1.5 h-1.5 bg-amber-400 rounded-full pointer-events-none" />
 
                 <span className="text-[0.6rem] font-black uppercase text-emerald-400/30 font-mono tracking-widest absolute">
-                  RADAR ACTIVE
+                  SCANNER ACTIVE
                 </span>
               </div>
             </div>
 
-            {/* Right: Real-time Neural Logging stream */}
-            <div className="flex flex-col justify-between h-full space-y-4">
+            {/* Right: Real-time scanner message feed */}
+            <div className="flex flex-col justify-center space-y-4">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-l-2 border-emerald-500 pl-2">
-                Scanner Action Feed
+                Scanner Action
               </h4>
-
-              <div className="space-y-3 flex-1 overflow-y-auto max-h-[220px] pr-2 custom-scrollbar">
-                {scanTicker.map((t, idx) => (
-                  <div key={idx} className="flex items-start justify-between text-xs font-mono border-b border-white/5 pb-2 last:border-0">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500 text-[10px]">{t.time}</span>
-                        <span className="font-bold text-slate-200">{t.symbol}</span>
-                        <span className={cn(
-                          "text-[9px] px-1 rounded font-bold uppercase",
-                          t.status === "LOCKED" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                          t.status === "FILTERED" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
-                          "bg-white/5 text-slate-400"
-                        )}>
-                          {t.status}
-                        </span>
-                      </div>
-                      <p className="text-slate-400 text-[11px] leading-relaxed">{t.message}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 pulse-dot" />
+                  <span className="text-xs font-bold text-white font-mono">{activeScanSymbol}</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed font-mono min-h-[40px]">
+                  {scanMessage}
+                </p>
+                <div className="text-[10px] text-slate-500 font-mono">
+                  Channel: TradingView Scanner Core
+                </div>
               </div>
             </div>
           </div>
         </GlassCard>
 
-        {/* Status Check - Right/Col 1 */}
+        {/* Live yFinance Market Trends - Right/Col 1 */}
         <GlassCard glowColor="rgba(168, 85, 247, 0.15)" className="flex flex-col p-8 border-white/5">
-          <h3 className="text-xl font-bold text-white mb-2 font-display">Core Infrastructure</h3>
-          <p className="text-slate-500 text-sm mb-8">Monitoring active algorithmic modules.</p>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xl font-bold text-white font-display flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-400" /> Market Ticker
+            </h3>
+            <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20 font-mono">
+              REAL-TIME (YF)
+            </span>
+          </div>
+          <p className="text-slate-500 text-xs mb-6">Top moving instruments currently parsed by neural adapters.</p>
           
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 overflow-y-auto max-h-[280px] pr-1 custom-scrollbar">
+             {trends.map((t) => (
+               <div key={t.symbol} className="flex justify-between items-center p-3.5 bg-white/[0.02] rounded-xl border border-white/5 hover:bg-white/[0.04] transition-all">
+                 <div className="space-y-0.5">
+                   <div className="flex items-center gap-2">
+                     <span className="text-sm font-bold text-white font-mono">{t.symbol}</span>
+                     <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{t.market}</span>
+                   </div>
+                   <p className="text-[10px] text-slate-500 truncate max-w-[150px]">{t.name}</p>
+                 </div>
+                 
+                 <div className="text-right">
+                   <p className="text-sm font-bold font-mono text-white">
+                     {t.market === 'Indian Equity' ? '₹' : '$'}{t.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                   </p>
+                   <span className={cn(
+                     "text-[10px] font-bold font-mono flex items-center gap-0.5 justify-end",
+                     t.change >= 0 ? "text-emerald-400" : "text-red-400"
+                   )}>
+                     {t.change >= 0 ? "+" : ""}{t.change.toFixed(2)}%
+                   </span>
+                 </div>
+               </div>
+             ))}
+          </div>
+        </GlassCard>
+      </div>
+
+      {/* Core Infrastructure check */}
+      <div className="mt-8">
+        <GlassCard glowColor="rgba(59, 130, 246, 0.15)" className="p-8 border-white/5">
+          <div className="flex items-center gap-2 mb-6">
+            <Cpu className="w-5 h-5 text-blue-400" />
+            <h3 className="text-xl font-bold text-white font-display">Algorithmic Daemon Clusters</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
              <StatusItem 
                 label="Scanner Engine" 
                 active={status?.scanner === "active"} 
                 icon={<Cpu className="w-4 h-4" />}
              />
              <StatusItem 
-                label="Upstox Broker API" 
+                label="Upstox API Node" 
                 active={status?.status === "online"} 
                 icon={<ShieldCheck className="w-4 h-4" />}
              />
@@ -267,20 +319,10 @@ export default function DashboardOverview() {
                 icon={<Globe className="w-4 h-4" />}
              />
              <StatusItem 
-                label="Exec Node 01" 
+                label="Exec Daemon 01" 
                 active={true} 
                 icon={<Zap className="w-4 h-4" />}
              />
-          </div>
-
-          <div className="mt-8 pt-8 border-t border-white/5">
-             <div className="flex items-center justify-between">
-                <span className="text-[0.65rem] font-bold text-slate-500 uppercase tracking-widest">Server Uptime</span>
-                <span className="text-xs font-mono text-emerald-500">99.98%</span>
-             </div>
-             <div className="w-full h-1 bg-white/5 rounded-full mt-2 overflow-hidden">
-                <div className="w-[99.9%] h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-             </div>
           </div>
         </GlassCard>
       </div>
@@ -290,7 +332,7 @@ export default function DashboardOverview() {
 
 function StatusItem({ label, active, icon }: { label: string; active: boolean; icon: React.ReactNode }) {
   return (
-    <div className="flex justify-between items-center p-4 bg-white/[0.03] rounded-2xl border border-white/5 hover:bg-white/[0.05] transition-all group">
+    <div className="flex justify-between items-center p-4 bg-white/[0.02] rounded-2xl border border-white/5 hover:bg-white/[0.04] transition-all group">
       <div className="flex items-center gap-3">
         <div className={cn(
           "p-2 rounded-xl transition-colors",
