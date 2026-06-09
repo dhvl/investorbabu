@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const orders = getCryptoSimulatedOrders();
+    const orders = await getCryptoSimulatedOrders();
     return NextResponse.json(orders);
   } catch (error) {
     return NextResponse.json([]);

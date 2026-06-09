@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const signals = getSignals();
+    const signals = await getSignals();
     return NextResponse.json(signals);
   } catch (error) {
     return NextResponse.json([]);

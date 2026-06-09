@@ -1,25 +1,31 @@
-import fs from 'fs';
-import path from 'path';
+const VPS_BASE = 'https://api.investorbabu.com';
 
-const DATA_DIR = process.env.LOG_FILE_PATH 
-  ? path.dirname(process.env.LOG_FILE_PATH) 
-  : '/home/investo/bluecandle';
-
-export function getInstruments() {
-  const filePath = path.join(DATA_DIR, 'instruments.json');
-  if (!fs.existsSync(filePath)) return {};
+async function fetchFromVPS(fileKey: string): Promise<any> {
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch {
-    return {};
+    const res = await fetch(`${VPS_BASE}/api/vps-data?file=${fileKey}`, {
+      cache: 'no-store',
+      next: { revalidate: 0 }
+    });
+    if (!res.ok) {
+      console.error(`VPS responded with status ${res.status} for ${fileKey}`);
+      return fileKey.includes('log') ? { content: "" } : (fileKey.includes('list') ? [] : {});
+    }
+    return await res.json();
+  } catch (err) {
+    console.error(`Failed to fetch ${fileKey} from VPS:`, err);
+    return fileKey.includes('log') ? { content: "" } : (fileKey.includes('list') ? [] : {});
   }
 }
 
-export function getSignals() {
-  const filePath = path.join(DATA_DIR, 'signals.json');
-  if (!fs.existsSync(filePath)) return [];
+export async function getInstruments() {
+  const data = await fetchFromVPS('instruments');
+  return data || {};
+}
+
+export async function getSignals() {
+  const rawSignals = await fetchFromVPS('signals');
+  if (!Array.isArray(rawSignals)) return [];
   try {
-    const rawSignals = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     return rawSignals.map((s: any, i: number) => ({
       id: `s-${i}`,
       time: s.candle_time,
@@ -37,15 +43,13 @@ export function getSignals() {
 }
 
 /**
- * Extracts the latest skip reason for an instrument from the log file
+ * Extracts the latest skip reason for an instrument from pre-loaded log content
  */
-export function getSkipReason(instrument: string): string {
-  const logPath = path.join(DATA_DIR, 'bluecandle.log');
-  if (!fs.existsSync(logPath)) return "System logs unavailable";
+export function getSkipReason(instrument: string, logContent: string): string {
+  if (!logContent) return "System logs unavailable";
   
   try {
-    const content = fs.readFileSync(logPath, 'utf8');
-    const lines = content.split('\n').reverse();
+    const lines = logContent.split('\n').reverse();
     
     // Look for the most recent entry for this instrument today
     const today = new Date().toISOString().slice(0, 10);
@@ -70,13 +74,12 @@ export function getSkipReason(instrument: string): string {
   }
 }
 
-export function getTradesForDate(dateStr: string) {
+export async function getTradesForDate(dateStr: string) {
   // dateStr format: YYYYMMDD
-  const filePath = path.join(DATA_DIR, `trades_${dateStr}.json`);
-  if (!fs.existsSync(filePath)) return [];
+  const rawTrades = await fetchFromVPS(`trades_${dateStr}`);
+  if (!Array.isArray(rawTrades)) return [];
   try {
-    const rawTrades = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const instruments = getInstruments();
+    const instruments = await getInstruments();
     
     return rawTrades
       .filter((t: any) => t.symbol in instruments) // Filter only active instruments
@@ -104,7 +107,7 @@ export function getTradesForDate(dateStr: string) {
 
 export async function getKiteReconciliation() {
   try {
-    const response = await fetch('http://127.0.0.1:5000/kite/reconcile', { cache: 'no-store' });
+    const response = await fetch(`${VPS_BASE}/kite/reconcile`, { cache: 'no-store', next: { revalidate: 0 } });
     if (!response.ok) return null;
     return await response.json();
   } catch (err) {
@@ -114,10 +117,11 @@ export async function getKiteReconciliation() {
 }
 
 export async function getAllTrades() {
-  if (!fs.existsSync(DATA_DIR)) return [];
-  const files = fs.readdirSync(DATA_DIR);
-  const tradeFiles = files.filter(f => f.startsWith('trades_') && f.endsWith('.json'));
-  const activeInstruments = getInstruments();
+  const basenames = await fetchFromVPS('list_trade_files');
+  if (!Array.isArray(basenames)) return [];
+  
+  const tradeFiles = basenames.filter(f => f.startsWith('trades_'));
+  const activeInstruments = await getInstruments();
   
   let allTrades: any[] = [];
   const todayDateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -129,11 +133,23 @@ export async function getAllTrades() {
   // Track which instruments traded today
   const tradedToday = new Set<string>();
 
-  tradeFiles.sort().reverse().forEach((file: string) => {
-    const dateStr = file.replace('trades_', '').replace('.json', '');
+  // Fetch log content once for skip reasons
+  const logData = await fetchFromVPS('bluecandle_log');
+  const logContent = logData?.content || '';
+
+  // Fetch all trade files concurrently
+  const filePromises = tradeFiles.map(async (file: string) => {
+    const dateStr = file.replace('trades_', '');
     const isToday = dateStr === todayDateStr;
-    const trades = getTradesForDate(dateStr);
-    
+    const trades = await getTradesForDate(dateStr);
+    return { dateStr, isToday, trades };
+  });
+
+  const resolvedFiles = await Promise.all(filePromises);
+  // Sort files descending by date
+  resolvedFiles.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+
+  resolvedFiles.forEach(({ dateStr, isToday, trades }) => {
     if (isToday && kiteSymbols.length > 0) {
       // For today, we use Kite aggregate data as the source of truth
       kiteSymbols.forEach((ks: any) => {
@@ -170,7 +186,7 @@ export async function getAllTrades() {
   // For the current date (today), add instruments that haven't traded yet
   Object.keys(activeInstruments).forEach((symbol: string) => {
     if (!tradedToday.has(symbol)) {
-      const reason = getSkipReason(symbol);
+      const reason = getSkipReason(symbol, logContent);
       allTrades.push({
         id: `nt-${symbol}-${todayDateStr}`,
         date: `${todayDateStr.slice(0, 4)}-${todayDateStr.slice(4, 6)}-${todayDateStr.slice(6, 8)}`,
@@ -193,7 +209,7 @@ export async function getAllTrades() {
 
 export async function getSummary() {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const todayTrades = getTradesForDate(today);
+  const todayTrades = await getTradesForDate(today);
   
   let totalPnL = todayTrades.reduce((acc: number, t: any) => acc + (t.pnl || 0), 0);
   let totalCapital = todayTrades.reduce((acc: number, t: any) => acc + (t.capital || 0), 0);
@@ -217,7 +233,7 @@ export async function getSummary() {
   const total = todayTrades.length;
   const winRate = total > 0 ? (wins / total) * 100 : 0;
   
-  const signals = getSignals();
+  const signals = await getSignals();
   
   return {
     today_pnl: totalPnL,
@@ -231,39 +247,29 @@ export async function getSummary() {
   };
 }
 
-export function getSimulatedOrders() {
-  const filePath = path.join(DATA_DIR, 'simulated_orders.json');
-  if (!fs.existsSync(filePath)) return [];
-  try {
-    const orders = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    return orders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
-  } catch {
-    return [];
-  }
+export async function getSimulatedOrders() {
+  const orders = await fetchFromVPS('simulated_orders');
+  if (!Array.isArray(orders)) return [];
+  return orders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
 }
 
-export function getUsSimulatedOrders() {
-  const filePath = path.join(DATA_DIR, 'us_simulated_orders.json');
+export async function getUsSimulatedOrders() {
   let allOrders: any[] = [];
   
   // Active today's simulated orders
-  if (fs.existsSync(filePath)) {
-    try {
-      const liveOrders = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
-    } catch (err) {
-      console.error(err);
-    }
+  const liveOrders = await fetchFromVPS('us_simulated_orders');
+  if (Array.isArray(liveOrders)) {
+    allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
   }
   
   // Historical trades
-  if (fs.existsSync(DATA_DIR)) {
-    const files = fs.readdirSync(DATA_DIR);
-    const tradeFiles = files.filter(f => f.startsWith('us_trades_') && f.endsWith('.json'));
+  const basenames = await fetchFromVPS('list_trade_files');
+  if (Array.isArray(basenames)) {
+    const tradeFiles = basenames.filter(f => f.startsWith('us_trades_'));
     
-    tradeFiles.forEach(file => {
+    const filePromises = tradeFiles.map(async (file) => {
       try {
-        const dateStrRaw = file.replace('us_trades_', '').replace('.json', '');
+        const dateStrRaw = file.replace('us_trades_', '');
         // format to "19 May 2026"
         const year = dateStrRaw.slice(0, 4);
         const monthNum = dateStrRaw.slice(4, 6);
@@ -271,11 +277,9 @@ export function getUsSimulatedOrders() {
         const dateObj = new Date(`${year}-${monthNum}-${day}`);
         const formattedDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
         
-        const fPath = path.join(DATA_DIR, file);
-        const pastTrades = JSON.parse(fs.readFileSync(fPath, 'utf8'));
-        
-        pastTrades.forEach((t: any) => {
-          allOrders.push({
+        const pastTrades = await fetchFromVPS(file);
+        if (Array.isArray(pastTrades)) {
+          return pastTrades.map((t: any) => ({
             symbol: t.symbol,
             date: formattedDate,
             time: t.time,
@@ -296,50 +300,49 @@ export function getUsSimulatedOrders() {
             sell_stop_loss: t.exit_price || 0,
             ltp: t.exit_price || 0,
             is_sar: false
-          });
-        });
+          }));
+        }
       } catch (err) {
         console.error("Error reading US history", file, err);
       }
+      return [];
+    });
+    
+    const resolvedOrdersList = await Promise.all(filePromises);
+    resolvedOrdersList.forEach(orders => {
+      if (orders) allOrders.push(...orders);
     });
   }
   
   return allOrders.filter(o => o.symbol !== "BTCUSD");
 }
 
-export function getCryptoSimulatedOrders() {
-  const filePath = path.join(DATA_DIR, 'us_simulated_orders.json');
+export async function getCryptoSimulatedOrders() {
   let allOrders: any[] = [];
   
   // Active today's simulated orders
-  if (fs.existsSync(filePath)) {
-    try {
-      const liveOrders = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
-    } catch (err) {
-      console.error(err);
-    }
+  const liveOrders = await fetchFromVPS('us_simulated_orders');
+  if (Array.isArray(liveOrders)) {
+    allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
   }
   
   // Historical trades
-  if (fs.existsSync(DATA_DIR)) {
-    const files = fs.readdirSync(DATA_DIR);
-    const tradeFiles = files.filter(f => f.startsWith('us_trades_') && f.endsWith('.json'));
+  const basenames = await fetchFromVPS('list_trade_files');
+  if (Array.isArray(basenames)) {
+    const tradeFiles = basenames.filter(f => f.startsWith('us_trades_'));
     
-    tradeFiles.forEach(file => {
+    const filePromises = tradeFiles.map(async (file) => {
       try {
-        const dateStrRaw = file.replace('us_trades_', '').replace('.json', '');
+        const dateStrRaw = file.replace('us_trades_', '');
         const year = dateStrRaw.slice(0, 4);
         const monthNum = dateStrRaw.slice(4, 6);
         const day = dateStrRaw.slice(6, 8);
         const dateObj = new Date(`${year}-${monthNum}-${day}`);
         const formattedDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
         
-        const fPath = path.join(DATA_DIR, file);
-        const pastTrades = JSON.parse(fs.readFileSync(fPath, 'utf8'));
-        
-        pastTrades.forEach((t: any) => {
-          allOrders.push({
+        const pastTrades = await fetchFromVPS(file);
+        if (Array.isArray(pastTrades)) {
+          return pastTrades.map((t: any) => ({
             symbol: t.symbol,
             date: formattedDate,
             time: t.time,
@@ -360,14 +363,19 @@ export function getCryptoSimulatedOrders() {
             sell_stop_loss: t.exit_price || 0,
             ltp: t.exit_price || 0,
             is_sar: false
-          });
-        });
+          }));
+        }
       } catch (err) {
-        console.error("Error reading US history", file, err);
+        console.error("Error reading Crypto history", file, err);
       }
+      return [];
+    });
+    
+    const resolvedOrdersList = await Promise.all(filePromises);
+    resolvedOrdersList.forEach(orders => {
+      if (orders) allOrders.push(...orders);
     });
   }
   
   return allOrders.filter(o => o.symbol === "BTCUSD");
 }
-

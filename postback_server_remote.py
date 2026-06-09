@@ -769,6 +769,64 @@ def get_system_logs():
         return jsonify([{"timestamp": "", "level": "ERROR", "message": f"Error reading log file: {str(e)}"}]), 500
 
 
+@app.route("/api/vps-data", methods=["GET"])
+def get_vps_file_data():
+    filename = request.args.get("file")
+    allowed_files = {
+        "simulated_orders": "simulated_orders.json",
+        "us_simulated_orders": "us_simulated_orders.json",
+        "signals": "signals.json",
+        "us_signals": "us_signals.json",
+        "instruments": "instruments.json",
+        "instruments_us": "instruments_us.json",
+        "instruments_crypto": "instruments_crypto.json",
+        "bluecandle_log": "bluecandle.log"
+    }
+    
+    if not filename:
+        return jsonify({"error": "Missing file parameter"}), 400
+        
+    # Check whitelist
+    actual_file = None
+    if filename in allowed_files:
+        actual_file = allowed_files[filename]
+    elif filename.startswith("trades_") or filename.startswith("us_trades_"):
+        import re
+        if not re.match(r"^(us_)?trades_\d{8}$", filename):
+            return jsonify({"error": "Invalid trades file name format"}), 400
+        actual_file = f"{filename}.json"
+    elif filename == "list_trade_files":
+        import glob
+        log_dir = "/home/investo/bluecandle"
+        pattern = os.path.join(log_dir, "*.json")
+        files = glob.glob(pattern)
+        basenames = [os.path.basename(f) for f in files]
+        trade_files = [f.replace(".json", "") for f in basenames if f.startswith("trades_") or f.startswith("us_trades_")]
+        return jsonify(trade_files)
+        
+    if not actual_file:
+        return jsonify({"error": "Unauthorized file request"}), 403
+        
+    log_dir = "/home/investo/bluecandle"
+    file_path = os.path.join(log_dir, actual_file)
+    if not os.path.exists(file_path):
+        file_path = actual_file
+        
+    if not os.path.exists(file_path):
+        return jsonify([]) if actual_file.endswith(".json") else jsonify({"content": ""})
+        
+    try:
+        if actual_file.endswith(".json"):
+            with open(file_path, "r") as f:
+                return jsonify(json.load(f))
+        else:
+            with open(file_path, "r") as f:
+                lines = f.readlines()[-1000:]
+                return jsonify({"content": "".join(lines)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/", methods=["GET"])
 def index():
     return jsonify({"service": "investorbabu.com API", "status": "running"}), 200

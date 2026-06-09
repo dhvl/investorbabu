@@ -8,7 +8,7 @@ const DATA_DIR = process.env.LOG_FILE_PATH
   ? path.dirname(process.env.LOG_FILE_PATH) 
   : '/home/investo/bluecandle';
 
-const FLASK_URL = 'http://127.0.0.1:5000/api/clients';
+const FLASK_URL = 'https://api.investorbabu.com/api/clients';
 
 export async function GET() {
   try {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const KITE_API_URL = 'http://127.0.0.1:5000/kite/instruments';
+const KITE_API_URL = 'https://api.investorbabu.com/kite/instruments';
 
 export async function GET(request: Request) {
   try {
