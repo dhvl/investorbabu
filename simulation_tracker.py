@@ -3,6 +3,57 @@ import json
 import time
 import logging
 import yfinance as yf
+import pandas as pd
+import requests
+
+def download_yf_clean(ticker, interval="1m", range_str="1d"):
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval={interval}&range={range_str}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        if not data.get('chart', {}).get('result'):
+            return pd.DataFrame()
+        result = data['chart']['result'][0]
+        timestamps = result.get('timestamp', [])
+        if not timestamps:
+            return pd.DataFrame()
+        quote = result.get('indicators', {}).get('quote', [{}])[0]
+        
+        opens = quote.get('open', [])
+        highs = quote.get('high', [])
+        lows = quote.get('low', [])
+        closes = quote.get('close', [])
+        volumes = quote.get('volume', [])
+        
+        df_data = []
+        for i in range(len(timestamps)):
+            if i >= len(opens) or opens[i] is None or highs[i] is None or lows[i] is None or closes[i] is None:
+                continue
+            df_data.append({
+                'timestamp': pd.to_datetime(timestamps[i], unit='s', utc=True),
+                'Open': float(opens[i]),
+                'High': float(highs[i]),
+                'Low': float(lows[i]),
+                'Close': float(closes[i]),
+                'Volume': float(volumes[i] if volumes[i] is not None else 0)
+            })
+            
+        if not df_data:
+            return pd.DataFrame()
+            
+        df = pd.DataFrame(df_data)
+        tz_name = result.get('meta', {}).get('exchangeTimezoneName', 'UTC')
+        df['timestamp'] = df['timestamp'].dt.tz_convert(tz_name)
+        df.set_index('timestamp', inplace=True)
+        return df
+    except Exception as e:
+        logging.error(f"[YahooFinance Clean] Error downloading {ticker}: {e}")
+        return pd.DataFrame()
+
 from datetime import datetime, timezone, timedelta
 from telegram_bot import send_trade_message
 
@@ -189,10 +240,10 @@ def run_simulation_tracking():
             dfs = {}
             for symbol in active_symbols:
                 try:
-                    df = yf.download(f"{symbol}.NS", period="1d", interval="1m", progress=False)
+                    df = download_yf_clean(f"{symbol}.NS", interval="1m", range_str="1d")
                     if not df.empty:
                         dfs[symbol] = df
-                        ltps[symbol] = float(df['Close'].iloc[-1].iloc[0] if hasattr(df['Close'].iloc[-1], 'iloc') else df['Close'].iloc[-1])
+                        ltps[symbol] = float(df['Close'].iloc[-1])
                 except Exception as yf_err:
                     logging.error(f"[Sim Tracker] Failed to fetch yfinance data for {symbol}: {yf_err}")
 
@@ -590,7 +641,7 @@ def run_simulation_tracking():
                 if updated:
                     import db_helper
                     for order in sim_orders:
-                        cl_id = f"{order['symbol']}_{order['date']}_{order['time']}_{order['plan']}_{order.get('is_sar', False)}"
+                        cl_id = f"{order['symbol']}_{order['date']}_{order['time']}_{order.get('plan', 'basic')}_{order.get('is_sar', False)}"
                         order["cl_order_id"] = cl_id.replace(" ", "_")
                         db_helper.save_order(order)
                     

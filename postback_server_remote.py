@@ -23,6 +23,18 @@ from telegram_bot import send_trade_message, send_message
 from upstox_broker import get_orders, get_trades, delete_gtt, check_and_cancel_other_gtt
 import config
 
+def get_upstox_access_token():
+    token_path = "/home/investo/bluecandle/upstox_token.txt"
+    if os.path.exists(token_path):
+        try:
+            with open(token_path, "r") as f:
+                token = f.read().strip()
+                if token:
+                    return token
+        except Exception as te:
+            logger.error(f"Error reading upstox_token.txt: {te}")
+    return os.getenv("UPSTOX_ACCESS_TOKEN")
+
 app = Flask(__name__)
 logging.basicConfig(
     level   = logging.INFO,
@@ -182,7 +194,7 @@ def reconcile_trades():
         import requests
         headers = {
             "Accept": "application/json",
-            "Authorization": f"Bearer {os.getenv('UPSTOX_ACCESS_TOKEN')}"
+            "Authorization": f"Bearer {get_upstox_access_token()}"
         }
         res_pos = requests.get("https://api.upstox.com/v2/portfolio/get-positions", headers=headers, timeout=10)
         positions = res_pos.json().get("data", []) if res_pos.status_code == 200 else []
@@ -780,6 +792,7 @@ def get_vps_file_data():
         "instruments": "instruments.json",
         "instruments_us": "instruments_us.json",
         "instruments_crypto": "instruments_crypto.json",
+        "instrument_configs": "instrument_configs.json",
         "bluecandle_log": "bluecandle.log"
     }
     
@@ -826,6 +839,108 @@ def get_vps_file_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/api/instruments/config", methods=["POST"])
+def save_instrument_config_vps():
+    try:
+        body = request.get_json(force=True)
+        symbol = body.get("symbol")
+        mode = body.get("mode")
+        currency = body.get("currency")
+        capital = body.get("capital")
+        lot_size = body.get("lot_size")
+        
+        if not symbol or not mode:
+            return jsonify({"error": "Missing symbol or mode"}), 400
+            
+        config_file = "/home/investo/bluecandle/instrument_configs.json"
+        if not os.path.exists(config_file):
+            config_file = "instrument_configs.json"
+            
+        data = {}
+        if os.path.exists(config_file):
+            with open(config_file, "r") as f:
+                data = json.load(f)
+                
+        if symbol not in data:
+            data[symbol] = {
+                "currency": currency or "INR",
+                "sim": {"capital": 10000.0, "lot_size": 0.0},
+                "live": {"capital": 10000.0, "lot_size": 0.0}
+            }
+            
+        if currency:
+            data[symbol]["currency"] = currency
+            
+        if mode in ["sim", "live"]:
+            if capital is not None:
+                data[symbol][mode]["capital"] = float(capital)
+            if lot_size is not None:
+                data[symbol][mode]["lot_size"] = float(lot_size)
+                
+        with open(config_file, "w") as f:
+            json.dump(data, f, indent=2)
+            
+        return jsonify({"status": "ok", "data": data[symbol]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/upstox/login")
+def upstox_login():
+    client_id = os.getenv("UPSTOX_API_KEY")
+    redirect_uri = "https://api.investorbabu.com/upstox/callback"
+    auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}"
+    from flask import redirect
+    return redirect(auth_url)
+
+@app.route("/upstox/callback")
+def upstox_callback():
+    code = request.args.get("code")
+    if not code:
+        return "Error: Missing code parameter", 400
+    
+    import requests
+    client_id = os.getenv("UPSTOX_API_KEY")
+    client_secret = os.getenv("UPSTOX_API_SECRET")
+    redirect_uri = "https://api.investorbabu.com/upstox/callback"
+    
+    payload = {
+        "code": code,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code"
+    }
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    try:
+        res = requests.post("https://api.upstox.com/v2/login/authorization/token", data=payload, headers=headers, timeout=15)
+        if res.status_code == 200:
+            res_data = res.json()
+            access_token = res_data.get("access_token")
+            if access_token:
+                token_path = "/home/investo/bluecandle/upstox_token.txt"
+                with open(token_path, "w") as f:
+                    f.write(access_token)
+                os.environ["UPSTOX_ACCESS_TOKEN"] = access_token
+                
+                # Send telegram notification
+                try:
+                    send_message("🔑 <b>Upstox Access Token Renewed Successfully!</b>\nThe new access token is active and has been saved dynamically.")
+                except Exception as te:
+                    logger.error(f"Telegram notify error: {te}")
+                
+                return "<h1>Success!</h1><p>Upstox access token has been successfully renewed and saved on the server. You can close this tab now.</p>"
+            else:
+                return f"Error: Token not found in response: {res.text}", 400
+        else:
+            return f"Error exchanging code for token: {res.text} (HTTP {res.status_code})", 400
+    except Exception as e:
+        return f"Exception occurred during token exchange: {str(e)}", 500
 
 @app.route("/", methods=["GET"])
 def index():
