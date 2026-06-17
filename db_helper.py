@@ -17,7 +17,10 @@ IS_DB_ACTIVE = bool(SUPABASE_URL and SUPABASE_KEY)
 
 # Fallback paths for JSON compatibility
 LOCAL_SIGNALS_FILE = "us_signals.json"
-LOCAL_ORDERS_FILE = "us_simulated_orders.json"
+
+def get_local_orders_file(symbol):
+    is_us_or_crypto = symbol in ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD", "BTCUSD"]
+    return "us_simulated_orders.json" if is_us_or_crypto else "simulated_orders.json"
 
 def get_headers():
     return {
@@ -129,7 +132,7 @@ def get_signals_by_date(date_str):
 
 def save_order(order):
     """
-    Saves an order to Supabase or simulated_orders.json
+    Saves an order to Supabase or simulated_orders.json / us_simulated_orders.json
     """
     if IS_DB_ACTIVE:
         try:
@@ -150,8 +153,11 @@ def save_order(order):
     # Fallback
     try:
         orders = []
-        if os.path.exists(LOCAL_ORDERS_FILE):
-            with open(LOCAL_ORDERS_FILE, "r") as f:
+        symbol = order.get("symbol", "")
+        file_path = get_local_orders_file(symbol)
+        
+        if os.path.exists(file_path):
+            with open(file_path, "r") as f:
                 orders = json.load(f)
         
         # Prevent exact duplicate orders locally
@@ -160,7 +166,7 @@ def save_order(order):
             return None
             
         orders.append(order)
-        with open(LOCAL_ORDERS_FILE, "w") as f:
+        with open(file_path, "w") as f:
             json.dump(orders, f, indent=2)
         return order
     except Exception as e:
@@ -183,20 +189,22 @@ def update_order(order_id, updates):
             
     # Fallback
     try:
-        if os.path.exists(LOCAL_ORDERS_FILE):
-            with open(LOCAL_ORDERS_FILE, "r") as f:
-                orders = json.load(f)
-            updated = False
-            for o in orders:
-                # Fallback matching on UUID or custom ClOrderID
-                if o.get("id") == order_id or o.get("cl_order_id") == order_id:
-                    o.update(updates)
-                    updated = True
-                    break
-            if updated:
-                with open(LOCAL_ORDERS_FILE, "w") as f:
-                    json.dump(orders, f, indent=2)
-                return True
+        # Check both files to see where the order lives
+        for file_path in ["us_simulated_orders.json", "simulated_orders.json"]:
+            if os.path.exists(file_path):
+                with open(file_path, "r") as f:
+                    orders = json.load(f)
+                updated = False
+                for o in orders:
+                    # Fallback matching on UUID or custom ClOrderID
+                    if o.get("id") == order_id or o.get("cl_order_id") == order_id:
+                        o.update(updates)
+                        updated = True
+                        break
+                if updated:
+                    with open(file_path, "w") as f:
+                        json.dump(orders, f, indent=2)
+                    return True
     except Exception as e:
         logger.error(f"Failed fallback update order: {e}")
     return False
