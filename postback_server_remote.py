@@ -355,12 +355,114 @@ def health():
     }), 200
 
 
+def handle_telegram_approval(msg_id, chat_id):
+    msg_id = str(msg_id)
+    chat_id = str(chat_id)
+    reactions_path = "pending_reactions.json"
+    
+    # Load pending reactions mapping
+    reactions = {}
+    if os.path.exists(reactions_path):
+        try:
+            with open(reactions_path, "r") as f:
+                reactions = json.load(f)
+        except Exception:
+            pass
+            
+    if msg_id not in reactions:
+        # Not a known pending signal or already approved
+        return False
+        
+    symbol = reactions[msg_id]
+    logger.info(f"[WebhookApproval] Received approval for message {msg_id} -> Symbol {symbol}")
+    
+    # Remove to prevent double execution
+    del reactions[msg_id]
+    try:
+        with open(reactions_path, "w") as f:
+            json.dump(reactions, f, indent=2)
+    except Exception as e:
+        logger.error(f"[WebhookApproval] Error saving reactions: {e}")
+        
+    # Notify Admin that approval was received
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    telegram_api = f"https://investorbabu.vercel.app/api/telegram-proxy?path=bot{bot_token}"
+    try:
+        requests.post(f"{telegram_api}/sendMessage", json={
+            "chat_id": chat_id,
+            "text": f"⏳ <b>Received approval for #{symbol}. Executing trade...</b>",
+            "parse_mode": "HTML"
+        }, timeout=10)
+    except Exception:
+        pass
+        
+    # Execute confirm_and_execute.py under python3.11
+    try:
+        res = subprocess.run(
+            ["python3.11", "confirm_and_execute.py", symbol],
+            capture_output=True, text=True
+        )
+        if res.returncode == 0:
+            logger.info(f"[WebhookApproval] Successfully executed confirm_and_execute.py for {symbol}")
+            requests.post(f"{telegram_api}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": f"✅ <b>Successfully confirmed and executed trade for #{symbol}!</b>",
+                "parse_mode": "HTML"
+            }, timeout=10)
+            return True
+        else:
+            logger.error(f"[WebhookApproval] Error executing confirm_and_execute.py: {res.stderr}")
+            requests.post(f"{telegram_api}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": f"❌ <b>Failed to execute trade for #{symbol}:</b>\n<code>{res.stderr or res.stdout}</code>",
+                "parse_mode": "HTML"
+            }, timeout=10)
+    except Exception as e:
+        logger.error(f"[WebhookApproval] Subprocess crash: {e}")
+        requests.post(f"{telegram_api}/sendMessage", json={
+            "chat_id": chat_id,
+            "text": f"❌ <b>Process error for #{symbol}:</b>\n<code>{str(e)}</code>",
+            "parse_mode": "HTML"
+        }, timeout=10)
+        
+    return False
+
+
 @app.route("/telegram/webhook", methods=["POST"])
 def telegram_webhook():
-    """Receive and handle Telegram user messages (interactive registration)."""
+    """Receive and handle Telegram user messages (interactive registration and approvals)."""
     try:
+        import requests
         update = request.get_json(force=True)
-        if not update or "message" not in update:
+        if not update:
+            return jsonify({"status": "ignored"}), 200
+
+        admin_ids = [id.strip() for id in os.getenv("TELEGRAM_ADMIN_CHAT_ID", "945073334").split(",") if id.strip()]
+
+        # 1. Handle message reaction update
+        if "message_reaction" in update:
+            rx = update["message_reaction"]
+            chat_id = str(rx["chat"]["id"])
+            msg_id = str(rx["message_id"])
+            
+            if chat_id not in admin_ids:
+                return jsonify({"status": "unauthorized"}), 200
+                
+            new_reactions = rx.get("new_reaction", [])
+            has_thumbsup = False
+            for r in new_reactions:
+                if r.get("emoji") in ["👍", "👍🏼", "👍🏽", "👍🏾", "👍🏿", "👍🏻"]:
+                    has_thumbsup = True
+                    break
+                    
+            if has_thumbsup:
+                handle_telegram_approval(msg_id, chat_id)
+                return jsonify({"status": "approved"}), 200
+                
+            return jsonify({"status": "ignored_reaction"}), 200
+
+        # 2. Handle message text reply update
+        if "message" not in update:
             return jsonify({"status": "ignored"}), 200
 
         message = update["message"]
@@ -371,7 +473,17 @@ def telegram_webhook():
         if not chat_id or not text:
             return jsonify({"status": "ignored"}), 200
 
-        # Load states and clients
+        # Check if this is a reply by an Admin to a pending signal message
+        if "reply_to_message" in message and chat_id in admin_ids:
+            reply_to = message["reply_to_message"]
+            reply_msg_id = str(reply_to["message_id"])
+            normalized_text = text.lower().strip()
+            
+            if normalized_text in ["👍", "👍🏼", "👍🏽", "👍🏾", "👍🏿", "👍🏻", "approve", "ok", "yes", "confirm", "go"]:
+                handle_telegram_approval(reply_msg_id, chat_id)
+                return jsonify({"status": "approved"}), 200
+
+        # Load states and clients for registration
         states = {}
         if os.path.exists("registration_states.json"):
             try:
@@ -389,7 +501,7 @@ def telegram_webhook():
                 pass
 
         bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        telegram_api = f"https://api.telegram.org/bot{bot_token}"
+        telegram_api = f"https://investorbabu.vercel.app/api/telegram-proxy?path=bot{bot_token}"
 
         def send_reply(msg_text):
             try:
@@ -446,7 +558,7 @@ def telegram_webhook():
 
             # Notify Admin (Dhaval)
             admin_token = os.getenv("TELEGRAM_BOT_TOKEN")
-            admin_api = f"https://api.telegram.org/bot{admin_token}"
+            admin_api = f"https://investorbabu.vercel.app/api/telegram-proxy?path=bot{admin_token}"
             admin_ids = [id.strip() for id in os.getenv("TELEGRAM_ADMIN_CHAT_ID", "945073334").split(",") if id.strip()]
             admin_msg = (
                 f"🔔 <b>New Registration Request</b>\n\n"
@@ -540,7 +652,7 @@ def approve_client():
 
         # Notify the user on Telegram
         bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        telegram_api = f"https://api.telegram.org/bot{bot_token}"
+        telegram_api = f"https://investorbabu.vercel.app/api/telegram-proxy?path=bot{bot_token}"
         
         if client_type == "chatbot":
             insts_str = ", ".join(whitelisted) if whitelisted else "None configured"
@@ -955,7 +1067,7 @@ if __name__ == "__main__":
     if token and "YOUR_" not in token:
         try:
             url = "https://api.investorbabu.com/telegram/webhook"
-            requests.post(f"https://api.telegram.org/bot{token}/setWebhook?url={url}", timeout=10)
+            requests.post(f"https://investorbabu.vercel.app/api/telegram-proxy?path=bot{token}/setWebhook?url={url}", timeout=10)
             logger.info(f"Telegram Webhook configured successfully to {url}")
         except Exception as we:
             logger.error(f"Failed to configure Telegram Webhook: {we}")
