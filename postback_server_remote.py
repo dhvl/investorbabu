@@ -905,6 +905,7 @@ def get_vps_file_data():
         "instruments_us": "instruments_us.json",
         "instruments_crypto": "instruments_crypto.json",
         "instrument_configs": "instrument_configs.json",
+        "simulation_settings": "simulation_settings.json",
         "bluecandle_log": "bluecandle.log"
     }
     
@@ -950,6 +951,43 @@ def get_vps_file_data():
                 return jsonify({"content": "".join(lines)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/simulation/settings", methods=["GET", "POST"])
+def manage_simulation_settings():
+    config_file = "/home/investo/bluecandle/simulation_settings.json"
+    if not os.path.exists(config_file):
+        config_file = "simulation_settings.json"
+        
+    if request.method == "POST":
+        try:
+            body = request.get_json(force=True)
+            with open(config_file, "w") as f:
+                json.dump(body, f, indent=2)
+            return jsonify({"status": "ok", "data": body})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    else:
+        try:
+            data = {}
+            if os.path.exists(config_file):
+                with open(config_file, "r") as f:
+                    data = json.load(f)
+            else:
+                # Default settings
+                data = {
+                    "indian": {"capital": 10000.0, "lot_size": 0.0},
+                    "us": {"capital": 10000.0, "lot_size": 1.0},
+                    "crypto": {"capital": 0.0, "lot_size": 0.1},
+                    "spread_limit": 0.8,
+                    "age_limit": 120,
+                    "use_strategy_3": True
+                }
+                with open(config_file, "w") as f:
+                    json.dump(data, f, indent=2)
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/instruments/config", methods=["POST"])

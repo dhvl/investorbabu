@@ -18,6 +18,11 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function CryptoSimulationPage() {
+  const [settings, setSettings] = useState<any>({
+    indian: { capital: 10000, lot_size: 0 },
+    us: { capital: 10000, lot_size: 1 },
+    crypto: { capital: 0, lot_size: 0.1 }
+  });
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
@@ -39,7 +44,20 @@ export default function CryptoSimulationPage() {
       }
     }
 
+    async function fetchSettings() {
+      try {
+        const res = await fetch("/api/simulation/settings");
+        if (res.ok) {
+          const data = await res.json();
+          setSettings(data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch settings:", e);
+      }
+    }
+
     fetchSimulationData();
+    fetchSettings();
     const interval = setInterval(fetchSimulationData, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -49,8 +67,42 @@ export default function CryptoSimulationPage() {
   const uniqueDates = Array.from(uniqueDatesSet) as string[];
   uniqueDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
+  // Adjust orders dynamically based on category settings
+  const adjustedOrders = orders.map(o => {
+    const isBtc = o.symbol === "BTCUSD";
+    const isUs = ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol);
+    const categorySettings = isBtc ? settings.crypto : (isUs ? settings.us : settings.indian);
+    
+    const targetLotSize = categorySettings.lot_size;
+    const targetCapital = categorySettings.capital;
+    
+    const entryPrice = o.entry_price || o.buy_entry || 0;
+    if (entryPrice <= 0) return o;
+    
+    let newQty = 0;
+    if (targetLotSize > 0) {
+      newQty = targetLotSize;
+    } else {
+      if (isBtc) {
+        newQty = parseFloat((targetCapital / entryPrice).toFixed(4));
+      } else {
+        newQty = Math.max(Math.floor(targetCapital / entryPrice), 1);
+      }
+    }
+    
+    const oldQty = o.buy_qty || o.sell_qty || 1;
+    const scalingFactor = newQty / oldQty;
+    
+    return {
+      ...o,
+      buy_qty: o.buy_qty ? newQty : o.buy_qty,
+      sell_qty: o.sell_qty ? newQty : o.sell_qty,
+      pnl: o.pnl ? parseFloat((o.pnl * scalingFactor).toFixed(4)) : 0
+    };
+  });
+
   // Filter orders by date AND plan
-  const filteredOrders = orders.filter(o => 
+  const filteredOrders = adjustedOrders.filter(o => 
     (!selectedDate || o.date === selectedDate) && 
     (o.plan === selectedPlan)
   );
