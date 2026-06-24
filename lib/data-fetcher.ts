@@ -317,6 +317,69 @@ export async function getUsSimulatedOrders() {
   return allOrders.filter(o => o.symbol !== "BTCUSD");
 }
 
+export async function getEashaanSimulatedOrders() {
+  let allOrders: any[] = [];
+  
+  // Active today's simulated orders
+  const liveOrders = await fetchFromVPS('eashaan_simulated_orders');
+  if (Array.isArray(liveOrders)) {
+    allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+  }
+  
+  // Historical trades
+  const basenames = await fetchFromVPS('list_trade_files');
+  if (Array.isArray(basenames)) {
+    const tradeFiles = basenames.filter(f => f.startsWith('eashaan_trades_'));
+    
+    const filePromises = tradeFiles.map(async (file) => {
+      try {
+        const dateStrRaw = file.replace('eashaan_trades_', '');
+        const year = dateStrRaw.slice(0, 4);
+        const monthNum = dateStrRaw.slice(4, 6);
+        const day = dateStrRaw.slice(6, 8);
+        const dateObj = new Date(`${year}-${monthNum}-${day}`);
+        const formattedDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
+        
+        const pastTrades = await fetchFromVPS(file);
+        if (Array.isArray(pastTrades)) {
+          return pastTrades.map((t: any) => ({
+            symbol: t.symbol,
+            date: formattedDate,
+            time: t.time,
+            plan: t.plan || "basic",
+            active_leg: t.transaction_type,
+            buy_qty: t.quantity,
+            sell_qty: t.quantity,
+            entry_price: t.entry_price,
+            exit_price: t.exit_price,
+            pnl: t.pnl,
+            status: t.status,
+            verified: false,
+            buy_entry: t.entry_price || 0,
+            buy_target: null,
+            buy_stop_loss: t.exit_price || 0,
+            sell_entry: t.entry_price || 0,
+            sell_target: null,
+            sell_stop_loss: t.exit_price || 0,
+            ltp: t.exit_price || 0,
+            is_sar: false
+          }));
+        }
+      } catch (err) {
+        console.error("Error reading Eashaan history", file, err);
+      }
+      return [];
+    });
+    
+    const resolvedOrdersList = await Promise.all(filePromises);
+    resolvedOrdersList.forEach(orders => {
+      if (orders) allOrders.push(...orders);
+    });
+  }
+  
+  return allOrders;
+}
+
 export async function getCryptoSimulatedOrders() {
   let allOrders: any[] = [];
   

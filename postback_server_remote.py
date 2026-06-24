@@ -847,6 +847,8 @@ def tradingview_alert():
         try:
             subprocess.Popen(["python3.11", replay_script])
             logger.info(f"Triggered background replay of {replay_script}")
+            subprocess.Popen(["python3.11", "eashaan_replay_today.py"])
+            logger.info("Triggered background replay of eashaan_replay_today.py")
         except Exception as re:
             logger.error(f"Failed to start background replay: {re}")
 
@@ -899,6 +901,7 @@ def get_vps_file_data():
     allowed_files = {
         "simulated_orders": "simulated_orders.json",
         "us_simulated_orders": "us_simulated_orders.json",
+        "eashaan_simulated_orders": "eashaan_simulated_orders.json",
         "signals": "signals.json",
         "us_signals": "us_signals.json",
         "instruments": "instruments.json",

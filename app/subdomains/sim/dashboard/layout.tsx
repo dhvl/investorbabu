@@ -71,6 +71,7 @@ export default function DashboardLayout({
     { id: "overview", label: "Indian Equity Sim", icon: LayoutDashboard, href: "/dashboard" },
     { id: "us-simulation", label: "US Market Sim", icon: Activity, href: "/dashboard/us" },
     { id: "crypto-simulation", label: "Crypto Sim", icon: Activity, href: "/dashboard/crypto" },
+    { id: "eashaan-simulation", label: "Eashaan Sim", icon: Activity, href: "/dashboard/eashaan" },
   ];
 
   return (

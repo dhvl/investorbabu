@@ -62,4 +62,6 @@ browser_profile/
 !/main.py
 !/db_helper.py
 !/execution/telegram_bot.py
+!/eashaan_simulation_tracker.py
+!/eashaan_replay_today.py
 

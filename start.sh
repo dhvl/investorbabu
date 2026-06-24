@@ -7,10 +7,11 @@ pkill -f "python3.*main.py" 2>/dev/null
 pkill -f "postback_server.py" 2>/dev/null
 pkill -f "simulation_tracker.py" 2>/dev/null
 pkill -f "us_simulation_tracker.py" 2>/dev/null
+pkill -f "eashaan_simulation_tracker.py" 2>/dev/null
 pkill -f "email_alert_listener.py" 2>/dev/null
 
 for i in {1..10}; do
-    RUNNING=$(ps aux | grep -E "main.py|postback_server|simulation_tracker|us_simulation_tracker|email_alert_listener" | grep -v grep | wc -l)
+    RUNNING=$(ps aux | grep -E "main.py|postback_server|simulation_tracker|us_simulation_tracker|eashaan_simulation_tracker|email_alert_listener" | grep -v grep | wc -l)
     if [ "$RUNNING" -eq 0 ]; then
         echo "All processes stopped."
         break
@@ -23,6 +24,7 @@ pkill -9 -f "python3.*main.py" 2>/dev/null
 pkill -9 -f "postback_server.py" 2>/dev/null
 pkill -9 -f "simulation_tracker.py" 2>/dev/null
 pkill -9 -f "us_simulation_tracker.py" 2>/dev/null
+pkill -9 -f "eashaan_simulation_tracker.py" 2>/dev/null
 pkill -9 -f "email_alert_listener.py" 2>/dev/null
 sleep 1
 
@@ -68,6 +70,17 @@ if ps -p $US_SIM_TRACKER_PID > /dev/null 2>&1; then
     echo "US simulation tracker started (PID: $US_SIM_TRACKER_PID)"
 else
     echo "WARNING: US simulation tracker failed to start!"
+fi
+
+echo "Starting Eashaan simulation tracker..."
+nohup python3.11 -u eashaan_simulation_tracker.py >> eashaan_simulation_tracker.log 2>&1 &
+EASHAAN_SIM_TRACKER_PID=$!
+sleep 2
+
+if ps -p $EASHAAN_SIM_TRACKER_PID > /dev/null 2>&1; then
+    echo "Eashaan simulation tracker started (PID: $EASHAAN_SIM_TRACKER_PID)"
+else
+    echo "WARNING: Eashaan simulation tracker failed to start!"
 fi
 
 echo "Starting email alert listener..."
