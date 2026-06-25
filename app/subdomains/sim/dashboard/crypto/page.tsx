@@ -182,61 +182,15 @@ export default function CryptoSimulationPage() {
         </div>
       ) : (
         <>
-          {/* Plan Selector & Description Row */}
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
-            <div className="flex bg-slate-950/60 backdrop-blur-md p-1.5 rounded-2xl border border-white/5 shadow-inner">
-              <button
-                onClick={() => setSelectedPlan("basic")}
-                className={cn(
-                  "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2",
-                  selectedPlan === "basic"
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_12px_rgba(59,130,246,0.3)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                )}
-              >
-                <Target className="w-4 h-4" />
-                <span>Basic Plan (1% Lock)</span>
-              </button>
-              <button
-                onClick={() => setSelectedPlan("growth")}
-                className={cn(
-                  "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2",
-                  selectedPlan === "growth"
-                    ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-[0_4px_12px_rgba(168,85,247,0.3)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                )}
-              >
-                <TrendingUp className="w-4 h-4" />
-                <span>Growth Plan (Pro Trail)</span>
-              </button>
-            </div>
-
-            <div className="text-xs font-semibold text-slate-400 bg-white/5 border border-white/5 rounded-2xl px-4 py-3 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Strategies 2 & 3 Integrated Perfectly</span>
-            </div>
-          </div>
-
           {/* Strategy Details Explanation Box */}
-          <GlassCard className="p-5 mb-8 border-white/5 bg-gradient-to-r from-slate-900/60 to-purple-950/20">
+          <GlassCard className="p-5 mb-8 border-white/5 bg-gradient-to-r from-slate-900/60 to-blue-950/20">
             <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-              {selectedPlan === "basic" ? (
-                <>
-                  <Target className="w-4 h-4 text-blue-400" />
-                  <span>BlueCandle Basic: 1.0% Locked Bracket Simulation</span>
-                </>
-              ) : (
-                <>
-                  <TrendingUp className="w-4 h-4 text-purple-400" />
-                  <span>BlueCandle Growth: Uncapped Trend-Riding Simulation</span>
-                </>
-              )}
+              <Target className="w-4 h-4 text-blue-400" />
+              <span>Unified Strategy: 1% Target & 1% Stop-Loss (with Martingale SAR Reversal)</span>
             </h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              {selectedPlan === "basic"
-                ? "This plan deploys Strategy 2 (Completed 15m candle-extreme trailing stop-loss) in tandem with Strategy 3 (Progressive Breakeven Locks). Once entry triggers: SL moves to Breakeven at +0.4% gain, locks in +0.4% profit at +0.7% gain, and automatically exits at a hard cap target of +1.0%."
-                : "This plan runs the exact same trailing SL logic and progressive risk-free lock-ins, but removes the target cap entirely. At +1.0%, the SL locks +0.7% profit. Beyond that, the SL trails at a maximum distance of 0.3% from the peak price, capturing massive breakouts."
-              }
+              This simulation engine runs a strict bracket logic with a 1.0% Target and 1.0% Stop-Loss.
+              If the initial breakout trade hits the stop-loss (1.0% loss), the engine automatically triggers a double-size (2x) Stop-And-Reverse (SAR) reversal trade in the opposite direction.
             </p>
           </GlassCard>
 

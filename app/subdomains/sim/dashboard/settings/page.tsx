@@ -27,7 +27,6 @@ export default function SimulationSettingsPage() {
 
   const [spread, setSpread] = useState("0.8");
   const [ageLimit, setAgeLimit] = useState("120");
-  const [useStrategy3, setUseStrategy3] = useState(true);
 
   // Fetch settings on mount
   useEffect(() => {
@@ -50,7 +49,6 @@ export default function SimulationSettingsPage() {
           }
           setSpread(String(data.spread_limit ?? 0.8));
           setAgeLimit(String(data.age_limit ?? 120));
-          setUseStrategy3(data.use_strategy_3 !== false);
         }
       } catch (err) {
         console.error("Failed to load settings:", err);
@@ -78,8 +76,7 @@ export default function SimulationSettingsPage() {
           lot_size: parseFloat(cryptoLotSize) || 0
         },
         spread_limit: parseFloat(spread) || 0.8,
-        age_limit: parseInt(ageLimit) || 120,
-        use_strategy_3: useStrategy3
+        age_limit: parseInt(ageLimit) || 120
       };
 
       const res = await fetch("/api/simulation/settings", {
@@ -243,20 +240,9 @@ export default function SimulationSettingsPage() {
             <h2 className="text-xl font-bold text-white">Simulation Target Rules</h2>
           </div>
           <GlassCard className="space-y-6">
-            <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
-              <div>
-                <p className="text-sm font-bold text-white">Strategy 2 & 3 Trailing Stop-Loss</p>
-                <p className="text-xs text-text-secondary">Breakeven triggers at +0.4% profit. Locks +0.4% at +0.7%.</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={useStrategy3}
-                  onChange={(e) => setUseStrategy3(e.target.checked)} 
-                  className="sr-only peer" 
-                />
-                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
+            <div className="p-4 bg-white/5 rounded-xl border border-white/5 text-xs text-text-secondary leading-relaxed">
+              <p className="font-bold text-white text-sm mb-1.5">Unified 1% Strategy Settings</p>
+              Under Eashaan's unified rules: Every breakout trigger creates a single simulation order with a fixed 1.0% Target and a 1.0% Stop-Loss. Reversal leg (Martingale SAR) automatically doubles the quantity (2x) on loss.
             </div>
 
             <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl text-xs">

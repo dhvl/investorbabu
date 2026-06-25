@@ -182,61 +182,15 @@ export default function SimulationPage() {
         </div>
       ) : (
         <>
-          {/* Plan Selector & Description Row */}
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
-            <div className="flex bg-slate-950/60 backdrop-blur-md p-1.5 rounded-2xl border border-white/5 shadow-inner">
-              <button
-                onClick={() => setSelectedPlan("basic")}
-                className={cn(
-                  "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2",
-                  selectedPlan === "basic"
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_12px_rgba(59,130,246,0.3)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                )}
-              >
-                <Target className="w-4 h-4" />
-                <span>Basic Plan (1% Lock)</span>
-              </button>
-              <button
-                onClick={() => setSelectedPlan("growth")}
-                className={cn(
-                  "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2",
-                  selectedPlan === "growth"
-                    ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-[0_4px_12px_rgba(168,85,247,0.3)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                )}
-              >
-                <TrendingUp className="w-4 h-4" />
-                <span>Growth Plan (Pro Trail)</span>
-              </button>
-            </div>
-
-            <div className="text-xs font-semibold text-slate-400 bg-white/5 border border-white/5 rounded-2xl px-4 py-3 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Strategies 2 & 3 Integrated Perfectly</span>
-            </div>
-          </div>
-
           {/* Strategy Details Explanation Box */}
-          <GlassCard className="p-5 mb-8 border-white/5 bg-gradient-to-r from-slate-900/60 to-purple-950/20">
+          <GlassCard className="p-5 mb-8 border-white/5 bg-gradient-to-r from-slate-900/60 to-blue-950/20">
             <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-              {selectedPlan === "basic" ? (
-                <>
-                  <Target className="w-4 h-4 text-blue-400" />
-                  <span>BlueCandle Basic: 1.0% Locked Bracket Simulation</span>
-                </>
-              ) : (
-                <>
-                  <TrendingUp className="w-4 h-4 text-purple-400" />
-                  <span>BlueCandle Growth: Uncapped Trend-Riding Simulation</span>
-                </>
-              )}
+              <Target className="w-4 h-4 text-blue-400" />
+              <span>Unified Strategy: 1% Target & 1% Stop-Loss (with Martingale SAR Reversal)</span>
             </h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              {selectedPlan === "basic"
-                ? "This plan deploys Strategy 2 (Completed 15m candle-extreme trailing stop-loss) in tandem with Strategy 3 (Progressive Breakeven Locks). Once entry triggers: SL moves to Breakeven at +0.4% gain, locks in +0.4% profit at +0.7% gain, and automatically exits at a hard cap target of +1.0%."
-                : "This plan runs the exact same trailing SL logic and progressive risk-free lock-ins, but removes the target cap entirely. At +1.0%, the SL locks +0.7% profit. Beyond that, the SL trails at a maximum distance of 0.3% from the peak price, capturing massive breakouts."
-              }
+              This simulation engine runs a strict bracket logic with a 1.0% Target and 1.0% Stop-Loss.
+              If the initial breakout trade hits the stop-loss (1.0% loss), the engine automatically triggers a double-size (2x) Stop-And-Reverse (SAR) reversal trade in the opposite direction.
             </p>
           </GlassCard>
 
@@ -256,10 +210,10 @@ export default function SimulationPage() {
                 "text-3xl font-bold tracking-tight font-display mb-1",
                 totalPnL >= 0 ? "text-emerald-400 text-shadow-emerald" : "text-red-400 text-shadow-red"
               )}>
-                Rs {totalPnL >= 0 ? "+" : ""}{totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₹ {totalPnL >= 0 ? "+" : ""}{totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                Est. ROI: <span className={overallRoi >= 0 ? "text-emerald-400" : "text-red-400"}>{overallRoi.toFixed(2)}%</span> | Capital: Rs {Math.round(peakTotalCapital).toLocaleString()}
+                Est. ROI: <span className={overallRoi >= 0 ? "text-emerald-400" : "text-red-400"}>{overallRoi.toFixed(2)}%</span> | Capital: ₹ {Math.round(peakTotalCapital).toLocaleString()}
               </p>
               <div className={cn(
                 "absolute -bottom-12 -left-12 w-24 h-24 blur-3xl opacity-20 pointer-events-none",
@@ -277,7 +231,7 @@ export default function SimulationPage() {
               <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
                 {activePositions.length} <span className="text-sm font-medium text-slate-500">running</span>
               </h3>
-              <p className="text-xs text-slate-500">Est. Margin Allocated: Rs {totalCapitalUsed.toLocaleString()}</p>
+              <p className="text-xs text-slate-500">Est. Margin Allocated: ₹ {totalCapitalUsed.toLocaleString()}</p>
               <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-blue-500/10 blur-3xl pointer-events-none" />
             </GlassCard>
 
@@ -362,7 +316,7 @@ export default function SimulationPage() {
                             "text-xl font-bold font-mono tracking-tight",
                             pnl >= 0 ? "text-emerald-400" : "text-red-400"
                           )}>
-                            Rs {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}
+                            ₹ {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -371,11 +325,11 @@ export default function SimulationPage() {
                       <div className="grid grid-cols-3 gap-4 p-3 bg-white/5 rounded-xl mb-4 border border-white/5">
                         <div>
                           <span className="text-[0.6rem] font-bold text-slate-500 uppercase block">Entry Price</span>
-                          <span className="text-sm font-bold font-mono text-slate-300">Rs {entry.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="text-sm font-bold font-mono text-slate-300">₹ {entry.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div>
                           <span className="text-[0.6rem] font-bold text-slate-500 uppercase block">Last Price (LTP)</span>
-                          <span className="text-sm font-bold font-mono text-white pulse-glow">Rs {ltp.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="text-sm font-bold font-mono text-white pulse-glow">₹ {ltp.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div>
                           <span className="text-[0.6rem] font-bold text-slate-500 uppercase block">Net Dist</span>
@@ -516,12 +470,12 @@ export default function SimulationPage() {
                                 </>
                               )}
                             </td>
-                            <td className="px-6 py-4 text-xs font-bold text-white">Rs {o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
+                            <td className="px-6 py-4 text-xs font-bold text-white">₹ {o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
                             <td className={cn(
                               "px-6 py-4 text-xs font-bold",
                               o.pnl > 0 ? "text-emerald-400" : o.pnl < 0 ? "text-red-400" : "text-slate-400"
                             )}>
-                              {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `Rs ${o.pnl.toFixed(2)}` : "—"}
+                              {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `₹ ${o.pnl.toFixed(2)}` : "—"}
                             </td>
                             <td className="px-6 py-4 text-right">
                               <span className={cn(

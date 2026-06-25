@@ -2,9 +2,16 @@ import os
 import json
 import time
 import logging
-import yfinance as yf
-import pandas as pd
 import requests
+import pandas as pd
+from datetime import datetime, timezone, timedelta
+
+# Timezone config
+IST = timezone(timedelta(hours=5, minutes=30))
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+SIGNALS_LOG = "signals.json"
+SIM_LOG = "simulated_orders.json"
 
 def download_yf_clean(ticker, interval="1m", range_str="1d"):
     try:
@@ -54,113 +61,90 @@ def download_yf_clean(ticker, interval="1m", range_str="1d"):
         logging.error(f"[YahooFinance Clean] Error downloading {ticker}: {e}")
         return pd.DataFrame()
 
-from datetime import datetime, timezone, timedelta
-from telegram_bot import send_trade_message
+def get_sizing_config(symbol):
+    global_capital, global_lot_size = None, None
+    settings_path = "simulation_settings.json"
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, "r") as f:
+                settings = json.load(f)
+                category = "indian"
+                cat_settings = settings.get(category, {})
+                global_capital = float(cat_settings.get("capital", 10000.0))
+                global_lot_size = float(cat_settings.get("lot_size", 0.0))
+        except Exception:
+            pass
 
-# Enforce IST timezone
-IST = timezone(timedelta(hours=5, minutes=30))
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    path = "instrument_configs.json"
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                configs = json.load(f)
+                if symbol in configs:
+                    cfg = configs[symbol]
+                    mode_cfg = cfg.get("sim", {})
+                    capital = mode_cfg.get("capital")
+                    lot_size = mode_cfg.get("lot_size")
+                    ret_capital = float(capital) if capital is not None else (global_capital if global_capital is not None else 10000.0)
+                    ret_lot_size = float(lot_size) if lot_size is not None else (global_lot_size if global_lot_size is not None else 0.0)
+                    return ret_capital, ret_lot_size
+        except Exception:
+            pass
+    if global_capital is not None and global_lot_size is not None:
+        return global_capital, global_lot_size
+    return 10000.0, 0.0
 
-SIGNALS_LOG = "/home/investo/bluecandle/signals.json"
-SIM_LOG = "/home/investo/bluecandle/simulated_orders.json"
-CAPITAL_PER_TRADE = 10000
-TARGET_R = 1.0
-TRIGGER_R = 0.8
-LOCK_R = 0.7
-
-def get_completed_15m_candle(df, current_time):
-    try:
-        minute_offset = current_time.minute % 15
-        rounded = current_time.replace(second=0, microsecond=0) - timedelta(minutes=minute_offset)
-        candle_start = rounded - timedelta(minutes=15)
-        candle_end = rounded - timedelta(minutes=1)
-        
-        # Slicing index
-        candle_df = df.loc[candle_start:candle_end]
-        if not candle_df.empty:
-            c_high = float(candle_df['High'].max())
-            c_low = float(candle_df['Low'].min())
-            return c_high, c_low
-    except Exception:
-        pass
-    return None, None
-
-def calculate_quantity(entry_price):
-    risk_per_trade = 100  # Gives 10k capital per trade
-    return max(1, int(risk_per_trade / (entry_price * 0.01)))
-
-
-INDIAN_HOLIDAYS_2026 = {
-    "2026-01-26",  # Republic Day
-    "2026-03-03",  # Holi
-    "2026-03-26",  # Shri Ram Navami
-    "2026-03-31",  # Shri Mahavir Jayanti
-    "2026-04-03",  # Good Friday
-    "2026-04-14",  # Dr. Baba Saheb Ambedkar Jayanti
-    "2026-05-01",  # Maharashtra Day
-    "2026-05-28",  # Bakri Id
-    "2026-06-26",  # Muharram
-    "2026-09-14",  # Ganesh Chaturthi
-    "2026-10-02",  # Mahatma Gandhi Jayanti
-    "2026-10-20",  # Dussehra
-    "2026-11-10",  # Diwali-Balipratipada
-    "2026-11-24",  # Prakash Gurpurb Sri Guru Nanak Dev
-    "2026-12-25",  # Christmas
-}
+def calculate_quantity(symbol, entry_price):
+    capital, lot_size = get_sizing_config(symbol)
+    if lot_size > 0:
+        return lot_size
+    return max(1, int(capital / entry_price))
 
 def run_simulation_tracking():
-    logging.info("[Sim Tracker] Starting simulated trade tracking engine...")
+    logging.info("[Indian Sim Tracker] Starting live Indian simulated trade tracking engine...")
     
     while True:
         try:
             now = datetime.now(IST)
             
-            # Reset state at midnight (00:00 IST)
-            if now.hour == 0 and now.minute == 0 and now.second < 15:
-                logging.info("[Sim Tracker] Midnight reset — backing up simulation history.")
-                # We can backup simulated_orders.json if needed
-                
-            # Check if today is a weekday and not a holiday
-            date_str = now.strftime("%Y-%m-%d")
-            if now.weekday() >= 5 or date_str in INDIAN_HOLIDAYS_2026:
+            # Inactive hours check (Skip weekends and nights)
+            if now.weekday() >= 5:
                 time.sleep(300)
                 continue
-
-            # Only track during active trading and monitoring hours (9 AM to 4 PM IST)
             if not (9 <= now.hour <= 16):
                 time.sleep(60)
                 continue
-
-            today_str = now.strftime("%d %b %Y")  # e.g., "18 May 2026"
+                
+            today_str = now.strftime("%d %b %Y")  
             
-            # 1. Load TV signals
-            signals = []
-            if os.path.exists(SIGNALS_LOG):
-                try:
-                    with open(SIGNALS_LOG, "r") as f:
-                        signals = json.load(f)
-                except Exception as err:
-                    logging.error(f"[Sim Tracker] Error loading signals: {err}")
-
-            # 2. Filter for today's signals
-            today_signals = [s for s in signals if s.get("candle_date") == today_str]
-
-            # 3. Load existing simulated orders
             sim_orders = []
             if os.path.exists(SIM_LOG):
                 try:
                     with open(SIM_LOG, "r") as f:
                         sim_orders = json.load(f)
                 except Exception as err:
-                    logging.error(f"[Sim Tracker] Error loading sim orders: {err}")
+                    logging.error(f"[Indian Sim Tracker] Error loading sim orders: {err}")
+                    time.sleep(15)
+                    continue
 
-            # 4. Enrich simulated orders with any new signals today
+            signals = []
+            if os.path.exists(SIGNALS_LOG):
+                try:
+                    with open(SIGNALS_LOG, "r") as f:
+                        signals = json.load(f)
+                except Exception as err:
+                    logging.error(f"[Indian Sim Tracker] Error loading signals: {err}")
+
+            # Filter for today's signals
+            today_signals = [s for s in signals if s.get("candle_date") == today_str]
+
+            # Ingest new signals
             updated = False
             for sig in today_signals:
                 symbol = sig.get("instrument")
                 candle_time = sig.get("candle_time")
                 
-                # Check if this signal is already represented in sim_orders (per symbol per day)
+                # Check if already exists in Sim
                 exists = False
                 for order in sim_orders:
                     if order.get("symbol") == symbol and order.get("date") == today_str:
@@ -168,275 +152,184 @@ def run_simulation_tracking():
                         break
                         
                 if not exists:
-                    # Candle Spread Veto check disabled per user request (authenticity of bluesignal confirmed)
-                    # high = sig.get("high")
-                    # low = sig.get("low")
-                    # if high and low:
-                    #     candle_spread_pct = ((high - low) / low) * 100
-                    #     if candle_spread_pct < 0.20 or candle_spread_pct > 1.00:
-                    #         logging.info(f"[Sim Tracker] Skipping {symbol} - Candle spread ({candle_spread_pct:.2f}%) outside safety range (0.20% - 1.00%)")
-                    #         continue
-                            
-                    # Apply Golden Hours Time Filter (11:30 AM - 1:30 PM Chop Zone)
-                    if candle_time:
-                        try:
-                            h, m = map(int, candle_time.split(":"))
-                            time_float = h + (m / 60.0)
-                            if 11.5 <= time_float <= 13.5:
-                                logging.info(f"[Sim Tracker] Skipping {symbol} - Inside Golden Hours Chop Zone ({candle_time})")
-                                continue
-                        except Exception as e:
-                            logging.error(f"[Sim Tracker] Error parsing candle time {candle_time}: {e}")
-                            
-                    # New signal found! Place buy & sell legs in pending simulation
                     high = sig.get("high")
                     low = sig.get("low")
                     
                     if high and low:
-                        # Apply Eashaan's execution rules
+                        # Indian equities tick is always 0.05
                         tick = 0.05
+                        
                         buy_entry = round(high + tick, 2)
                         sell_entry = round(low - tick, 2)
                         
-                        buy_stop = low
-                        sell_stop = high
+                        # Stop loss at 1% of entry price
+                        buy_stop = round(buy_entry * 0.99, 2)
+                        sell_stop = round(sell_entry * 1.01, 2)
                         
+                        # Target at 1% of entry price
                         buy_target = round(buy_entry * 1.01, 2)
                         sell_target = round(sell_entry * 0.99, 2)
                         
-                        for plan in ["basic", "growth"]:
-                            new_order = {
-                                "symbol": symbol,
-                                "date": today_str,
-                                "time": candle_time,
-                                "plan": plan,
-                                "buy_entry": buy_entry,
-                                "buy_target": buy_target if plan == "basic" else None,
-                                "buy_stop_loss": float(buy_stop),
-                                "buy_qty": calculate_quantity(buy_entry),
-                                "sell_entry": sell_entry,
-                                "sell_target": sell_target if plan == "basic" else None,
-                                "sell_stop_loss": float(sell_stop),
-                                "sell_qty": calculate_quantity(sell_entry),
-                                "status": "PENDING",
-                                "active_leg": None,
-                                "entry_price": None,
-                                "exit_price": None,
-                                "entry_time": None,
-                                "exit_time": None,
-                                "pnl": 0.0,
-                                "ltp": float(sig.get("price", buy_entry)),
-                                "buy_stop_loss_original": float(buy_stop),
-                                "sell_stop_loss_original": float(sell_stop),
-                                "is_sar": False
-                            }
-                            sim_orders.append(new_order)
+                        new_order = {
+                            "symbol": symbol,
+                            "date": today_str,
+                            "time": candle_time,
+                            "plan": "basic",
+                            "buy_entry": buy_entry,
+                            "buy_target": buy_target,
+                            "buy_stop_loss": buy_stop,
+                            "buy_qty": calculate_quantity(symbol, buy_entry),
+                            "sell_entry": sell_entry,
+                            "sell_target": sell_target,
+                            "sell_stop_loss": sell_stop,
+                            "sell_qty": calculate_quantity(symbol, sell_entry),
+                            "status": "PENDING",
+                            "active_leg": None,
+                            "entry_price": None,
+                            "exit_price": None,
+                            "entry_time": None,
+                            "exit_time": None,
+                            "pnl": 0.0,
+                            "ltp": float(sig.get("price", buy_entry)),
+                            "buy_stop_loss_original": buy_stop,
+                            "sell_stop_loss_original": sell_stop,
+                            "is_sar": False
+                        }
+                        sim_orders.append(new_order)
                         updated = True
-                        logging.info(f"[Sim Tracker] Registered new simulation breakout bracket for {symbol}")
+                        logging.info(f"[Indian Sim Tracker] Registered new simulation breakout bracket for {symbol}")
 
-            # 5. Fetch live LTPs and 1m DataFrames for all active symbols to update status
-            active_symbols = list(set([o["symbol"] for o in sim_orders if o["status"] in ["PENDING", "PENDING_SAR", "ACTIVE"]]))
-            ltps = {}
-            dfs = {}
-            for symbol in active_symbols:
+            all_symbols = set([o["symbol"] for o in sim_orders if o["status"] in ["PENDING", "PENDING_SAR", "ACTIVE"]])
+            
+            if not all_symbols:
+                time.sleep(30)
+                continue
+                
+            # Fetch live data
+            hist_data = {}
+            for sym in list(all_symbols):
+                yf_sym = f"{sym}.NS"
                 try:
-                    df = download_yf_clean(f"{symbol}.NS", interval="1m", range_str="1d")
+                    df = download_yf_clean(yf_sym, interval="1m", range_str="1d")
                     if not df.empty:
-                        dfs[symbol] = df
-                        ltps[symbol] = float(df['Close'].iloc[-1])
-                except Exception as yf_err:
-                    logging.error(f"[Sim Tracker] Failed to fetch yfinance data for {symbol}: {yf_err}")
+                        hist_data[sym] = df
+                except Exception as e:
+                    logging.error(f"[Indian Sim Tracker] Error fetching data for {sym}: {e}")
 
-            # 6. Execute paper-trading matches
+            # Process each order
             for order in sim_orders:
-                symbol = order["symbol"]
-                if symbol not in ltps:
+                sym = order["symbol"]
+                if sym not in hist_data or hist_data[sym].empty:
                     continue
                     
-                ltp = ltps[symbol]
-                order["ltp"] = ltp
+                df = hist_data[sym]
+                latest_row = df.iloc[-1]
                 
-                # Check transition states
+                try:
+                    c_high = float(latest_row['High'].iloc[0] if hasattr(latest_row['High'], 'iloc') else latest_row['High'])
+                    c_low = float(latest_row['Low'].iloc[0] if hasattr(latest_row['Low'], 'iloc') else latest_row['Low'])
+                    c_close = float(latest_row['Close'].iloc[0] if hasattr(latest_row['Close'], 'iloc') else latest_row['Close'])
+                except Exception as e:
+                    continue
+                
+                # Update LTP
+                if order.get("ltp") != c_close:
+                    order["ltp"] = c_close
+                    updated = True
+
+                current_iso = now.isoformat()
+
                 if order["status"] in ["PENDING", "PENDING_SAR"]:
                     if order["status"] == "PENDING":
-                        # Breakout Check
-                        if ltp >= order["buy_entry"]:
+                        if c_high >= order["buy_entry"]:
                             order["status"] = "ACTIVE"
                             order["active_leg"] = "BUY"
                             order["entry_price"] = order["buy_entry"]
-                            order["entry_time"] = datetime.now(IST).isoformat()
+                            order["entry_time"] = current_iso
                             updated = True
-                            
-                            buy_target_str = f"Rs {order['buy_target']:.2f}" if order['buy_target'] is not None else "N/A"
-                            msg = (
-                                f"🔔 <b>[SIMULATION] BUY LEG FILLED — {symbol}</b>\n\n"
-                                f"📈 Long Entry filled at Rs {order['buy_entry']:.2f}\n"
-                                f"Quantity   : {order['buy_qty']} shares\n"
-                                f"Target     : {buy_target_str}\n"
-                                f"Stop Loss  : Rs {order['buy_stop_loss']:.2f}\n"
-                                f"Sim Time   : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                            )
-                            send_trade_message(msg)
-                            logging.info(f"[Sim Tracker] Long breakout filled for {symbol} at {order['buy_entry']}")
-                            
-                        elif ltp <= order["sell_entry"]:
+                            logging.info(f"[Indian Sim Tracker] [{sym}] BUY ENTRY triggered at {order['buy_entry']}")
+                        elif c_low <= order["sell_entry"]:
                             order["status"] = "ACTIVE"
                             order["active_leg"] = "SELL"
                             order["entry_price"] = order["sell_entry"]
-                            order["entry_time"] = datetime.now(IST).isoformat()
+                            order["entry_time"] = current_iso
                             updated = True
-                            
-                            sell_target_str = f"Rs {order['sell_target']:.2f}" if order['sell_target'] is not None else "N/A"
-                            msg = (
-                                f"🔔 <b>[SIMULATION] SELL LEG FILLED — {symbol}</b>\n\n"
-                                f"📉 Short Entry filled at Rs {order['sell_entry']:.2f}\n"
-                                f"Quantity   : {order['sell_qty']} shares\n"
-                                f"Target     : {sell_target_str}\n"
-                                f"Stop Loss  : Rs {order['sell_stop_loss']:.2f}\n"
-                                f"Sim Time   : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                            )
-                            send_trade_message(msg)
-                            logging.info(f"[Sim Tracker] Short breakout filled for {symbol} at {order['sell_entry']}")
+                            logging.info(f"[Indian Sim Tracker] [{sym}] SELL ENTRY triggered at {order['sell_entry']}")
                     else:  # PENDING_SAR
-                        if order["active_leg"] == "BUY" and ltp >= order["buy_entry"]:
+                        if order["active_leg"] == "BUY" and c_high >= order["buy_entry"]:
                             order["status"] = "ACTIVE"
                             order["entry_price"] = order["buy_entry"]
-                            order["entry_time"] = datetime.now(IST).isoformat()
+                            order["entry_time"] = current_iso
                             updated = True
-                            
-                            buy_target_str = f"Rs {order['buy_target']:.2f}" if order['buy_target'] is not None else "N/A"
-                            msg = (
-                                f"🔄 <b>[SIMULATION SAR] BUY LEG FILLED — {symbol}</b>\n\n"
-                                f"📈 Long Entry filled at Rs {order['buy_entry']:.2f}\n"
-                                f"Quantity   : {order['buy_qty']} shares (Martingale x2)\n"
-                                f"Stop Loss  : Rs {order['buy_stop_loss']:.2f}\n"
-                                f"Sim Time   : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                            )
-                            send_trade_message(msg)
-                            logging.info(f"[Sim Tracker] Long SAR breakout filled for {symbol} at {order['buy_entry']}")
-                        elif order["active_leg"] == "SELL" and ltp <= order["sell_entry"]:
+                            logging.info(f"[Indian Sim Tracker] [{sym}] BUY SAR ENTRY triggered at {order['buy_entry']}")
+                        elif order["active_leg"] == "SELL" and c_low <= order["sell_entry"]:
                             order["status"] = "ACTIVE"
                             order["entry_price"] = order["sell_entry"]
-                            order["entry_time"] = datetime.now(IST).isoformat()
+                            order["entry_time"] = current_iso
                             updated = True
-                            
-                            sell_target_str = f"Rs {order['sell_target']:.2f}" if order['sell_target'] is not None else "N/A"
-                            msg = (
-                                f"🔄 <b>[SIMULATION SAR] SELL LEG FILLED — {symbol}</b>\n\n"
-                                f"📉 Short Entry filled at Rs {order['sell_entry']:.2f}\n"
-                                f"Quantity   : {order['sell_qty']} shares (Martingale x2)\n"
-                                f"Stop Loss  : Rs {order['sell_stop_loss']:.2f}\n"
-                                f"Sim Time   : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                            )
-                            send_trade_message(msg)
-                            logging.info(f"[Sim Tracker] Short SAR breakout filled for {symbol} at {order['sell_entry']}")
-                        
+                            logging.info(f"[Indian Sim Tracker] [{sym}] SELL SAR ENTRY triggered at {order['sell_entry']}")
+
                 elif order["status"] == "ACTIVE":
-                    # Exit Check
                     entry = order["entry_price"]
                     qty = order["buy_qty"] if order["active_leg"] == "BUY" else order["sell_qty"]
-                    plan = order.get("plan", "basic")
-                    dec_places = 2
-                    
+        
                     # 3:15 PM Auto Square-Off Check
                     if (now.hour == 15 and now.minute >= 15) or now.hour >= 16:
                         order["status"] = "SQ OFF"
-                        order["exit_price"] = ltp
-                        order["exit_time"] = datetime.now(IST).isoformat()
-                        
-                        pnl = (ltp - entry) * qty if order["active_leg"] == "BUY" else (entry - ltp) * qty
+                        order["exit_price"] = c_close
+                        order["exit_time"] = current_iso
+                        pnl = (c_close - entry) * qty if order["active_leg"] == "BUY" else (entry - c_close) * qty
                         order["pnl"] = round(pnl, 2)
                         updated = True
-                        
-                        pnl_pct = (pnl / (entry * qty)) * 100
-                        msg = (
-                            f"⏰ <b>[SIMULATION] 3:15 PM AUTO SQUARE-OFF — {symbol} ({plan.upper()} plan)</b>\n\n"
-                            f"🟡 {order['active_leg']} position closed!\n"
-                            f"Entry Price : Rs {entry:.2f}\n"
-                            f"Exit Price  : Rs {ltp:.2f}\n"
-                            f"Return      : {pnl_pct:.2f}%\n"
-                            f"PnL         : Rs {pnl:.2f}\n"
-                            f"Sim Time    : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                        )
-                        send_trade_message(msg)
-                        logging.info(f"[Sim Tracker] Auto Squared-off {symbol} at {ltp}")
+                        logging.info(f"[Indian Sim Tracker] [{sym}] Auto Squared-off at {c_close}")
                         continue
-                    
-                    # Get DataFrame for candle tracking
-                    df = dfs.get(symbol)
-                    
-                    if order["active_leg"] == "BUY":
-                        distance_1R = order.get("distance_1R")
-                        if not distance_1R:
-                            distance_1R = order["buy_entry"] * 0.01
-                            order["distance_1R"] = distance_1R
-                            updated = True
-                            
-                        # 1. Target check (1.0R) - only for basic plan
-                        if plan == "basic" and order.get("buy_target") is not None:
-                            if ltp >= order["buy_target"]:
-                                order["status"] = "TARGET HIT"
-                                order["exit_price"] = order["buy_target"]
-                                order["exit_time"] = datetime.now(IST).isoformat()
-                                pnl = (order["buy_target"] - entry) * qty
-                                order["pnl"] = round(pnl, 2)
-                                updated = True
-                                
-                                msg = (
-                                    f"🎯 <b>[SIMULATION] TARGET HIT (+{TARGET_R:.1f}R) — {symbol} (BASIC plan)</b>\n\n"
-                                    f"🔴 BUY position closed!\n"
-                                    f"Entry Price : Rs {entry:.2f}\n"
-                                    f"Exit Price  : Rs {order['buy_target']:.2f}\n"
-                                    f"PnL         : Rs {pnl:+.2f}\n"
-                                    f"Sim Time    : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                                )
-                                send_trade_message(msg)
-                                logging.info(f"[Sim Tracker] Long Target hit for {symbol} at {order['buy_target']}")
-                                continue
 
-                        # 2. Stop Loss check
-                        if ltp <= order["buy_stop_loss"]:
-                            is_trailed = order["buy_stop_loss"] > order["buy_stop_loss_original"]
-                            order["status"] = "TRAILING SL HIT" if is_trailed else "SL HIT"
-                            order["exit_price"] = order["buy_stop_loss"]
-                            order["exit_time"] = datetime.now(IST).isoformat()
-                            pnl = (order["buy_stop_loss"] - entry) * qty
+                    if order["active_leg"] == "BUY":
+                        # Update PnL
+                        pnl = (c_close - entry) * qty
+                        if order.get("pnl") != round(pnl, 2):
                             order["pnl"] = round(pnl, 2)
                             updated = True
                             
-                            pnl_pct = ((order["buy_stop_loss"] - entry) / entry) * 100
-                            emoji = "✅" if is_trailed else "❌"
-                            leg_status = "Trailing Stop Loss Hit!" if is_trailed else "STOP LOSS HIT"
-                            
-                            msg = (
-                                f"{emoji} <b>[SIMULATION] {leg_status} ({pnl_pct:+.2f}%) — {symbol} ({plan.upper()} plan)</b>\n\n"
-                                f"🔴 BUY position closed!\n"
-                                f"Entry Price : Rs {entry:.2f}\n"
-                                f"Exit Price  : Rs {order['buy_stop_loss']:.2f}\n"
-                                f"PnL         : Rs {pnl:+.2f}\n"
-                                f"Sim Time    : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                            )
-                            send_trade_message(msg)
-                            logging.info(f"[Sim Tracker] Long SL hit for {symbol} at {order['buy_stop_loss']} ({plan} plan)")
-                            
-                            # Eashaan Rule 3: Martingale SAR (Only on Loss and original SL)
+                        # 1. Target check (1.0% target)
+                        if order.get("buy_target") is not None:
+                            if c_high >= order["buy_target"]:
+                                order["status"] = "TARGET HIT"
+                                order["exit_price"] = order["buy_target"]
+                                order["exit_time"] = current_iso
+                                pnl = (order["buy_target"] - entry) * qty
+                                order["pnl"] = round(pnl, 2)
+                                updated = True
+                                logging.info(f"[Indian Sim Tracker] [{sym}] TARGET HIT! PnL: {order['pnl']}")
+                                continue
+        
+                        # 2. Stop Loss check
+                        if c_low <= order["buy_stop_loss"]:
+                            order["status"] = "SL HIT"
+                            order["exit_price"] = order["buy_stop_loss"]
+                            order["exit_time"] = current_iso
+                            pnl = (order["buy_stop_loss"] - entry) * qty
+                            order["pnl"] = round(pnl, 2)
+                            updated = True
+                            logging.info(f"[Indian Sim Tracker] [{sym}] SL HIT! PnL: {order['pnl']}")
+        
+                            # Martingale SAR (Only on loss and original SL, and only if not already a SAR trade)
                             is_original_sl = order["buy_stop_loss"] == order["buy_stop_loss_original"]
                             if pnl < 0 and is_original_sl and not order.get("is_sar", False):
                                 sar_qty = int(qty * 2)
-                                # Reversal entry is at the original opposite breakout level (sell_entry)
                                 sar_entry = order["sell_entry"]
                                 new_sar = {
-                                    "symbol": symbol,
-                                    "date": order["date"],
-                                    "time": datetime.now(IST).strftime("%H:%M"),
-                                    "plan": plan,
+                                    "symbol": sym,
+                                    "date": today_str,
+                                    "time": now.strftime("%H:%M"),
+                                    "plan": "basic",
                                     "buy_entry": order["buy_entry"],
-                                    "buy_target": round(order["buy_entry"] * 1.01, 2) if plan == "basic" else None,
-                                    "buy_stop_loss": order["buy_entry"],
+                                    "buy_target": round(order["buy_entry"] * 1.01, 2),
+                                    "buy_stop_loss": round(order["buy_entry"] * 0.99, 2),
                                     "buy_qty": sar_qty,
                                     "sell_entry": sar_entry,
-                                    "sell_target": round(sar_entry * 0.99, 2) if plan == "basic" else None,
-                                    "sell_stop_loss": round(sar_entry + distance_1R, 2),
+                                    "sell_target": round(sar_entry * 0.99, 2),
+                                    "sell_stop_loss": round(sar_entry * 1.01, 2),
                                     "sell_qty": sar_qty,
                                     "status": "PENDING_SAR",
                                     "active_leg": "SELL",
@@ -445,132 +338,60 @@ def run_simulation_tracking():
                                     "entry_time": None,
                                     "exit_time": None,
                                     "pnl": 0.0,
-                                    "ltp": ltp,
+                                    "ltp": c_close,
                                     "is_sar": True,
-                                    "distance_1R": distance_1R,
-                                    "buy_stop_loss_original": order["buy_entry"],
-                                    "sell_stop_loss_original": round(sar_entry + distance_1R, 2)
+                                    "buy_stop_loss_original": round(order["buy_entry"] * 0.99, 2),
+                                    "sell_stop_loss_original": round(sar_entry * 1.01, 2)
                                 }
                                 sim_orders.append(new_sar)
-                                send_trade_message(f"🔄 <b>[SIMULATION SAR] SELL BREAKOUT QUEUED — {symbol} ({plan.upper()} plan)</b>\nQuantity: {sar_qty} (Martingale x2)\nEntry Trigger: Rs {sar_entry:.2f}\nTrailing SL: Rs {new_sar['sell_stop_loss']:.2f}")
-                        else:
-                            # Trail Logic
-                            highest = order.get("highest_reached", entry)
-                            if ltp > highest:
-                                order["highest_reached"] = ltp
-                                highest = ltp
-                                
-                            sl_candidates = [order["buy_stop_loss"]]
-                            
-                            # A. Progressive lock trailing (Strategy 3)
-                            profit_pct = (highest - entry) / entry * 100
-                            if plan == "basic":
-                                if profit_pct >= 0.7:
-                                    sl_candidates.append(entry * 1.004)
-                                elif profit_pct >= 0.4:
-                                    sl_candidates.append(entry)
-                            else: # growth plan
-                                if profit_pct >= 1.0:
-                                    sl_candidates.append(highest * 0.997)
-                                elif profit_pct >= 0.7:
-                                    sl_candidates.append(entry * 1.004)
-                                elif profit_pct >= 0.4:
-                                    sl_candidates.append(entry)
-                                    
-                            # B. Candle-low trailing (Strategy 2)
-                            if df is not None and not df.empty:
-                                ref_time = df.index[-1]
-                                c_high_15m, c_low_15m = get_completed_15m_candle(df, ref_time)
-                                if c_low_15m is not None:
-                                    if c_low_15m > order["buy_stop_loss"]:
-                                        if c_low_15m < ltp:
-                                            sl_candidates.append(c_low_15m)
-                                            
-                            new_sl = max(sl_candidates)
-                            new_sl = round(new_sl, dec_places)
-                            if order["buy_stop_loss"] != new_sl:
-                                order["buy_stop_loss"] = new_sl
-                                updated = True
-                                logging.info(f"[{symbol}] Trailed BUY SL to {order['buy_stop_loss']} ({plan} plan)")
-
-                            # Update running unrealized PnL
-                            unrealized_pnl = (ltp - entry) * qty
-                            if order.get("pnl") != round(unrealized_pnl, 2):
-                                order["pnl"] = round(unrealized_pnl, 2)
-                                updated = True
-                                
+                                logging.info(f"[Indian Sim Tracker] [{sym}] Queued SAR Reversal SELL for {sar_qty} qty at {sar_entry}")
+        
                     elif order["active_leg"] == "SELL":
-                        distance_1R = order.get("distance_1R")
-                        if not distance_1R:
-                            distance_1R = order["sell_entry"] * 0.01
-                            order["distance_1R"] = distance_1R
-                            updated = True
-                            
-                        # 1. Target check (1.0R) - only for basic plan
-                        if plan == "basic" and order.get("sell_target") is not None:
-                            if ltp <= order["sell_target"]:
-                                order["status"] = "TARGET HIT"
-                                order["exit_price"] = order["sell_target"]
-                                order["exit_time"] = datetime.now(IST).isoformat()
-                                pnl = (entry - order["sell_target"]) * qty
-                                order["pnl"] = round(pnl, 2)
-                                updated = True
-                                
-                                msg = (
-                                    f"🎯 <b>[SIMULATION] TARGET HIT (+{TARGET_R:.1f}R) — {symbol} (BASIC plan)</b>\n\n"
-                                    f"🔴 SELL position closed!\n"
-                                    f"Entry Price : Rs {entry:.2f}\n"
-                                    f"Exit Price  : Rs {order['sell_target']:.2f}\n"
-                                    f"PnL         : Rs {pnl:+.2f}\n"
-                                    f"Sim Time    : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                                )
-                                send_trade_message(msg)
-                                logging.info(f"[Sim Tracker] Short Target hit for {symbol} at {order['sell_target']}")
-                                continue
-
-                        # 2. Stop Loss check
-                        if ltp >= order["sell_stop_loss"]:
-                            is_trailed = order["sell_stop_loss"] < order["sell_stop_loss_original"]
-                            order["status"] = "TRAILING SL HIT" if is_trailed else "SL HIT"
-                            order["exit_price"] = order["sell_stop_loss"]
-                            order["exit_time"] = datetime.now(IST).isoformat()
-                            pnl = (entry - order["sell_stop_loss"]) * qty
+                        # Update PnL
+                        pnl = (entry - c_close) * qty
+                        if order.get("pnl") != round(pnl, 2):
                             order["pnl"] = round(pnl, 2)
                             updated = True
                             
-                            pnl_pct = ((entry - order["sell_stop_loss"]) / entry) * 100
-                            emoji = "✅" if is_trailed else "❌"
-                            leg_status = "Trailing Stop Loss Hit!" if is_trailed else "STOP LOSS HIT"
-                            
-                            msg = (
-                                f"{emoji} <b>[SIMULATION] {leg_status} ({pnl_pct:+.2f}%) — {symbol} ({plan.upper()} plan)</b>\n\n"
-                                f"🔴 SELL position closed!\n"
-                                f"Entry Price : Rs {entry:.2f}\n"
-                                f"Exit Price  : Rs {order['sell_stop_loss']:.2f}\n"
-                                f"PnL         : Rs {pnl:+.2f}\n"
-                                f"Sim Time    : {datetime.now(IST).strftime('%I:%M:%S %p IST')}"
-                            )
-                            send_trade_message(msg)
-                            logging.info(f"[Sim Tracker] Short SL hit for {symbol} at {order['sell_stop_loss']} ({plan} plan)")
-                            
-                            # Eashaan Rule 3: Martingale SAR (Only on Loss and original SL)
+                        # 1. Target check (1.0% target)
+                        if order.get("sell_target") is not None:
+                            if c_low <= order["sell_target"]:
+                                order["status"] = "TARGET HIT"
+                                order["exit_price"] = order["sell_target"]
+                                order["exit_time"] = current_iso
+                                pnl = (entry - order["sell_target"]) * qty
+                                order["pnl"] = round(pnl, 2)
+                                updated = True
+                                logging.info(f"[Indian Sim Tracker] [{sym}] TARGET HIT! PnL: {order['pnl']}")
+                                continue
+        
+                        # 2. Stop Loss check
+                        if c_high >= order["sell_stop_loss"]:
+                            order["status"] = "SL HIT"
+                            order["exit_price"] = order["sell_stop_loss"]
+                            order["exit_time"] = current_iso
+                            pnl = (entry - order["sell_stop_loss"]) * qty
+                            order["pnl"] = round(pnl, 2)
+                            updated = True
+                            logging.info(f"[Indian Sim Tracker] [{sym}] SL HIT! PnL: {order['pnl']}")
+        
+                            # Martingale SAR (Only on loss and original SL, and only if not already a SAR trade)
                             is_original_sl = order["sell_stop_loss"] == order["sell_stop_loss_original"]
                             if pnl < 0 and is_original_sl and not order.get("is_sar", False):
                                 sar_qty = int(qty * 2)
-                                # Reversal entry is at the original opposite breakout level (buy_entry)
                                 sar_entry = order["buy_entry"]
                                 new_sar = {
-                                    "symbol": symbol,
-                                    "date": order["date"],
-                                    "time": datetime.now(IST).strftime("%H:%M"),
-                                    "plan": plan,
+                                    "symbol": sym,
+                                    "date": today_str,
+                                    "time": now.strftime("%H:%M"),
+                                    "plan": "basic",
                                     "buy_entry": sar_entry,
-                                    "buy_target": round(sar_entry * 1.01, 2) if plan == "basic" else None,
-                                    "buy_stop_loss": round(sar_entry - distance_1R, 2),
+                                    "buy_target": round(sar_entry * 1.01, 2),
+                                    "buy_stop_loss": round(sar_entry * 0.99, 2),
                                     "buy_qty": sar_qty,
                                     "sell_entry": order["sell_entry"],
-                                    "sell_target": round(order["sell_entry"] * 0.99, 2) if plan == "basic" else None,
-                                    "sell_stop_loss": order["sell_entry"],
+                                    "sell_target": round(order["sell_entry"] * 0.99, 2),
+                                    "sell_stop_loss": round(order["sell_entry"] * 1.01, 2),
                                     "sell_qty": sar_qty,
                                     "status": "PENDING_SAR",
                                     "active_leg": "BUY",
@@ -579,74 +400,21 @@ def run_simulation_tracking():
                                     "entry_time": None,
                                     "exit_time": None,
                                     "pnl": 0.0,
-                                    "ltp": ltp,
+                                    "ltp": c_close,
                                     "is_sar": True,
-                                    "distance_1R": distance_1R,
-                                    "buy_stop_loss_original": round(sar_entry - distance_1R, 2),
-                                    "sell_stop_loss_original": order["sell_entry"]
+                                    "buy_stop_loss_original": round(sar_entry * 0.99, 2),
+                                    "sell_stop_loss_original": round(order["sell_entry"] * 1.01, 2)
                                 }
                                 sim_orders.append(new_sar)
-                                send_trade_message(f"🔄 <b>[SIMULATION SAR] BUY BREAKOUT QUEUED — {symbol} ({plan.upper()} plan)</b>\nQuantity: {sar_qty} (Martingale x2)\nEntry Trigger: Rs {sar_entry:.2f}\nTrailing SL: Rs {new_sar['buy_stop_loss']:.2f}")
-                        else:
-                            lowest = order.get("lowest_reached", entry)
-                            if ltp < lowest:
-                                order["lowest_reached"] = ltp
-                                lowest = ltp
-                                
-                            sl_candidates = [order["sell_stop_loss"]]
-                            
-                            # A. Progressive lock trailing (Strategy 3)
-                            profit_pct = (entry - lowest) / entry * 100
-                            if plan == "basic":
-                                if profit_pct >= 0.7:
-                                    sl_candidates.append(entry * 0.996)
-                                elif profit_pct >= 0.4:
-                                    sl_candidates.append(entry)
-                            else: # growth plan
-                                if profit_pct >= 1.0:
-                                    sl_candidates.append(lowest * 1.003)
-                                elif profit_pct >= 0.7:
-                                    sl_candidates.append(entry * 0.996)
-                                elif profit_pct >= 0.4:
-                                    sl_candidates.append(entry)
-                                    
-                            # B. Candle-high trailing (Strategy 2)
-                            if df is not None and not df.empty:
-                                ref_time = df.index[-1]
-                                c_high_15m, c_low_15m = get_completed_15m_candle(df, ref_time)
-                                if c_high_15m is not None:
-                                    if c_high_15m < order["sell_stop_loss"]:
-                                        if c_high_15m > ltp:
-                                            sl_candidates.append(c_high_15m)
-                                            
-                            new_sl = min(sl_candidates)
-                            new_sl = round(new_sl, dec_places)
-                            if order["sell_stop_loss"] != new_sl:
-                                order["sell_stop_loss"] = new_sl
-                                updated = True
-                                logging.info(f"[{symbol}] Trailed SELL SL to {order['sell_stop_loss']} ({plan} plan)")
+                                logging.info(f"[Indian Sim Tracker] [{sym}] Queued SAR Reversal BUY for {sar_qty} qty at {sar_entry}")
 
-                            # Update running unrealized PnL
-                            unrealized_pnl = (entry - ltp) * qty
-                            if order.get("pnl") != round(unrealized_pnl, 2):
-                                order["pnl"] = round(unrealized_pnl, 2)
-                                updated = True
-
-            # 7. Save updated sim orders
-            if updated or active_symbols:
+            # Save if updated
+            if updated:
                 with open(SIM_LOG, "w") as f:
                     json.dump(sim_orders, f, indent=2)
-                
-                # Synchronize to Supabase via database helper
-                if updated:
-                    import db_helper
-                    for order in sim_orders:
-                        cl_id = f"{order['symbol']}_{order['date']}_{order['time']}_{order.get('plan', 'basic')}_{order.get('is_sar', False)}"
-                        order["cl_order_id"] = cl_id.replace(" ", "_")
-                        db_helper.save_order(order)
                     
-        except Exception as e:
-            logging.error(f"[Sim Tracker] Loop error: {e}")
+        except Exception as main_err:
+            logging.error(f"[Indian Sim Tracker] Main loop error: {main_err}")
             
         time.sleep(10)
 
