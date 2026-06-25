@@ -28,6 +28,7 @@ export default function EashaanSimulationPage() {
   const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [selectedPlan, setSelectedPlan] = useState<string>("basic");
+  const [selectedCategory, setSelectedCategory] = useState<"indian" | "us" | "crypto">("indian");
 
   useEffect(() => {
     async function fetchSimulationData() {
@@ -67,11 +68,17 @@ export default function EashaanSimulationPage() {
   const uniqueDates = Array.from(uniqueDatesSet) as string[];
   uniqueDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
+  // Helper to identify order category
+  const getOrderCategory = (symbol: string): "indian" | "us" | "crypto" => {
+    if (symbol === "BTCUSD") return "crypto";
+    if (["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(symbol)) return "us";
+    return "indian";
+  };
+
   // Adjust orders dynamically based on category settings
   const adjustedOrders = orders.map(o => {
-    const isBtc = o.symbol === "BTCUSD";
-    const isUs = ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol);
-    const categorySettings = isBtc ? settings.crypto : (isUs ? settings.us : settings.indian);
+    const category = getOrderCategory(o.symbol);
+    const categorySettings = settings[category] || settings.indian;
     
     const targetLotSize = categorySettings.lot_size;
     const targetCapital = categorySettings.capital;
@@ -83,7 +90,7 @@ export default function EashaanSimulationPage() {
     if (targetLotSize > 0) {
       newQty = targetLotSize;
     } else {
-      if (isBtc) {
+      if (category === "crypto") {
         newQty = parseFloat((targetCapital / entryPrice).toFixed(4));
       } else {
         newQty = Math.max(Math.floor(targetCapital / entryPrice), 1);
@@ -101,11 +108,15 @@ export default function EashaanSimulationPage() {
     };
   });
 
-  // Filter orders by date AND plan
+  // Filter orders by date AND plan AND category
   const filteredOrders = adjustedOrders.filter(o => 
     (!selectedDate || o.date === selectedDate) && 
-    (o.plan === selectedPlan)
+    (o.plan === selectedPlan) &&
+    (getOrderCategory(o.symbol) === selectedCategory)
   );
+
+  // Currency symbol helper based on current selection
+  const currencySymbol = selectedCategory === "indian" ? "₹" : "$";
 
   // Compute stats
   const activePositions = filteredOrders.filter(o => o.status === "ACTIVE");
@@ -182,33 +193,54 @@ export default function EashaanSimulationPage() {
         </div>
       ) : (
         <>
-          {/* Plan Selector & Description Row */}
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-8">
-            <div className="flex bg-slate-950/60 backdrop-blur-md p-1.5 rounded-2xl border border-white/5 shadow-inner">
-              <button
-                onClick={() => setSelectedPlan("basic")}
-                className={cn(
-                  "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2",
-                  selectedPlan === "basic"
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_12px_rgba(59,130,246,0.3)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                )}
-              >
-                <Target className="w-4 h-4" />
-                <span>Basic Plan (1% Target/SL)</span>
-              </button>
-              <button
-                onClick={() => setSelectedPlan("growth")}
-                className={cn(
-                  "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2",
-                  selectedPlan === "growth"
-                    ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-[0_4px_12px_rgba(168,85,247,0.3)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                )}
-              >
-                <TrendingUp className="w-4 h-4" />
-                <span>Growth Plan (Trailing SL)</span>
-              </button>
+          {/* Listings Category Tabs and Plan Selector */}
+          <div className="flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+              {/* Category selector */}
+              <div className="flex bg-slate-950/60 backdrop-blur-md p-1.5 rounded-2xl border border-white/5 shadow-inner">
+                {(["indian", "us", "crypto"] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={cn(
+                      "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300",
+                      selectedCategory === cat
+                        ? "bg-slate-800 text-white shadow-[0_4px_12px_rgba(255,255,255,0.05)] border border-white/10"
+                        : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                    )}
+                  >
+                    {cat === "indian" ? "Indian Equity" : cat === "us" ? "US Commodities" : "Crypto"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Plan Selector */}
+              <div className="flex bg-slate-950/60 backdrop-blur-md p-1.5 rounded-2xl border border-white/5 shadow-inner">
+                <button
+                  onClick={() => setSelectedPlan("basic")}
+                  className={cn(
+                    "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2",
+                    selectedPlan === "basic"
+                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_4px_12px_rgba(59,130,246,0.3)]"
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  )}
+                >
+                  <Target className="w-4 h-4" />
+                  <span>Basic Plan</span>
+                </button>
+                <button
+                  onClick={() => setSelectedPlan("growth")}
+                  className={cn(
+                    "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2",
+                    selectedPlan === "growth"
+                      ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-[0_4px_12px_rgba(168,85,247,0.3)]"
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  )}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Growth Plan</span>
+                </button>
+              </div>
             </div>
 
             <div className="text-xs font-semibold text-slate-400 bg-white/5 border border-white/5 rounded-2xl px-4 py-3 flex items-center gap-2">
@@ -223,12 +255,12 @@ export default function EashaanSimulationPage() {
               {selectedPlan === "basic" ? (
                 <>
                   <Target className="w-4 h-4 text-blue-400" />
-                  <span>Eashaan Basic: 1.0% Profit Target & 1.0% Stop-Loss</span>
+                  <span>Eashaan Basic: 1.0% Profit Target & 1.0% Stop-Loss ({selectedCategory === "indian" ? "INR" : "USD"})</span>
                 </>
               ) : (
                 <>
                   <TrendingUp className="w-4 h-4 text-purple-400" />
-                  <span>Eashaan Growth: Trailing Stop-Loss with 1.0% Risk Limit</span>
+                  <span>Eashaan Growth: Trailing Stop-Loss with 1.0% Risk Limit ({selectedCategory === "indian" ? "INR" : "USD"})</span>
                 </>
               )}
             </h3>
@@ -244,7 +276,7 @@ export default function EashaanSimulationPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <GlassCard className="relative overflow-hidden p-6 border-white/5">
               <div className="flex justify-between items-start mb-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Simulation P&L</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total {selectedCategory === "indian" ? "INR" : "USD"} P&L</p>
                 <div className={cn(
                   "p-2 rounded-lg",
                   totalPnL >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
@@ -256,10 +288,10 @@ export default function EashaanSimulationPage() {
                 "text-3xl font-bold tracking-tight font-display mb-1",
                 totalPnL >= 0 ? "text-emerald-400 text-shadow-emerald" : "text-red-400 text-shadow-red"
               )}>
-                ${totalPnL >= 0 ? "+" : ""}{totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {currencySymbol}{totalPnL >= 0 ? "+" : ""}{totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                Est. ROI: <span className={overallRoi >= 0 ? "text-emerald-400" : "text-red-400"}>{overallRoi.toFixed(2)}%</span> | Capital: ${Math.round(peakTotalCapital).toLocaleString()}
+                Est. ROI: <span className={overallRoi >= 0 ? "text-emerald-400" : "text-red-400"}>{overallRoi.toFixed(2)}%</span> | Capital: {currencySymbol}{Math.round(peakTotalCapital).toLocaleString()}
               </p>
               <div className={cn(
                 "absolute -bottom-12 -left-12 w-24 h-24 blur-3xl opacity-20 pointer-events-none",
@@ -277,7 +309,7 @@ export default function EashaanSimulationPage() {
               <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
                 {activePositions.length} <span className="text-sm font-medium text-slate-500">running</span>
               </h3>
-              <p className="text-xs text-slate-500">Est. Margin Allocated: ${totalCapitalUsed.toLocaleString()}</p>
+              <p className="text-xs text-slate-500">Est. Margin Allocated: {currencySymbol}{totalCapitalUsed.toLocaleString()}</p>
               <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-blue-500/10 blur-3xl pointer-events-none" />
             </GlassCard>
 
@@ -324,7 +356,7 @@ export default function EashaanSimulationPage() {
             {filteredOrders.length === 0 ? (
               <GlassCard className="p-12 text-center border-white/5 bg-white/2">
                 <AlertTriangle className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-                <p className="text-slate-400 font-medium">No simulated trades found for this day.</p>
+                <p className="text-slate-400 font-medium">No simulated trades found for this day in the chosen category.</p>
                 <p className="text-xs text-slate-500 mt-1">If this is a live day, wait for TradingView alerts to trigger brackets.</p>
               </GlassCard>
             ) : (
@@ -374,11 +406,11 @@ export default function EashaanSimulationPage() {
                               <span className="text-slate-600 font-semibold">—</span>
                             )}
                           </td>
-                          <td className="py-4 px-6 font-mono font-medium">${(order.entry_price || order.buy_entry || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                          <td className="py-4 px-6 font-mono text-slate-500">${(order.active_leg === "BUY" ? order.buy_target : (order.active_leg === "SELL" ? order.sell_target : order.buy_target || 0))?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || "N/A"}</td>
-                          <td className="py-4 px-6 font-mono text-slate-500">${(order.active_leg === "BUY" ? order.buy_stop_loss : (order.active_leg === "SELL" ? order.sell_stop_loss : order.buy_stop_loss || 0))?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || "N/A"}</td>
+                          <td className="py-4 px-6 font-mono font-medium">{currencySymbol}{(order.entry_price || order.buy_entry || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="py-4 px-6 font-mono text-slate-500">{currencySymbol}{(order.active_leg === "BUY" ? order.buy_target : (order.active_leg === "SELL" ? order.sell_target : order.buy_target || 0))?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || "N/A"}</td>
+                          <td className="py-4 px-6 font-mono text-slate-500">{currencySymbol}{(order.active_leg === "BUY" ? order.buy_stop_loss : (order.active_leg === "SELL" ? order.sell_stop_loss : order.buy_stop_loss || 0))?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || "N/A"}</td>
                           <td className="py-4 px-6 font-mono font-medium">{order.active_leg === "BUY" ? order.buy_qty : (order.active_leg === "SELL" ? order.sell_qty : order.buy_qty || 0)}</td>
-                          <td className="py-4 px-6 font-mono font-medium text-slate-300">${(order.ltp || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="py-4 px-6 font-mono font-medium text-slate-300">{currencySymbol}{(order.ltp || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                           <td className={cn("py-4 px-6 font-mono font-bold text-right", pnlColor)}>
                             {order.pnl > 0 ? "+" : ""}{order.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
