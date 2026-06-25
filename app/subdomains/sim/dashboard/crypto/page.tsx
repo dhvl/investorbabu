@@ -383,116 +383,158 @@ export default function CryptoSimulationPage() {
           </div>
 
           {/* Full Simulated Order Book Section */}
-          <div>
-            <h2 className="text-xl font-bold text-white mb-4 font-display flex items-center gap-2">
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-white font-display flex items-center gap-2">
               Simulation Order Book <span className="text-xs text-slate-500 font-normal">({filteredOrders.length} orders total)</span>
             </h2>
 
-            <GlassCard className="p-0 border-white/5 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-white/5 bg-white/[0.02]">
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Symbol</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Det. Time</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Trade Time</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Trigger Leg</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Buy Bracket (Entry/Tgt/SL)</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Sell Bracket (Entry/Tgt/SL)</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">LTP</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Sim P&L</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="px-6 py-12 text-center text-slate-500 text-sm">
-                          No simulated records found for this period. Waiting for TradingView signals...
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredOrders.map((o, idx) => {
-                        const statusColors: Record<string, string> = {
-                          "PENDING": "text-amber-400 border-amber-500/20 bg-amber-500/5",
-                          "ACTIVE": "text-blue-400 border-blue-500/20 bg-blue-500/5",
-                          "TARGET HIT": "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",
-                          "SL HIT": "text-red-400 border-red-500/20 bg-red-500/5",
-                          "TRAILING SL HIT": "text-orange-400 border-orange-500/20 bg-orange-500/5",
-                          "SQ OFF": "text-purple-400 border-purple-500/20 bg-purple-500/5"
-                        };
+            {(() => {
+              const grouped: Record<string, typeof filteredOrders> = {};
+              filteredOrders.forEach(o => {
+                if (!grouped[o.symbol]) grouped[o.symbol] = [];
+                grouped[o.symbol].push(o);
+              });
+              
+              const symbols = Object.keys(grouped);
+              if (symbols.length === 0) {
+                return (
+                  <GlassCard className="p-12 text-center text-slate-500 text-sm border-white/5">
+                    No simulated records found for this period. Waiting for TradingView signals...
+                  </GlassCard>
+                );
+              }
 
-                        return (
-                          <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.01] transition-colors font-mono">
-                            <td className="px-6 py-4 font-bold text-white font-display text-sm">{o.symbol}</td>
-                            <td className="px-6 py-4 text-xs text-slate-400">{o.time}</td>
-                            <td className="px-6 py-4 text-xs text-slate-300 font-bold">
-                              {o.entry_time ? (
-                                o.entry_time.includes("T") 
-                                  ? o.entry_time.split("T")[1].slice(0, 5) 
-                                  : o.entry_time.slice(0, 5)
-                              ) : (
-                                <span className="text-slate-600 font-normal">Pending</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-xs">
-                              {o.active_leg ? (
-                                <Badge variant={o.active_leg === "BUY" ? "success" : "danger"} className="text-[0.6rem] py-0 px-1">
-                                  {o.active_leg} (x{o.active_leg === "BUY" ? o.buy_qty : o.sell_qty})
-                                </Badge>
-                              ) : (
-                                <span className="text-slate-600">—</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-xs text-slate-400">
-                              {o.is_sar && o.active_leg === "SELL" ? (
-                                <span className="text-slate-600">—</span>
-                              ) : (
-                                <>
-                                  <span className="text-slate-200">{o.buy_entry.toFixed(1)}</span>
-                                  <span className="text-slate-500 mx-1">/</span>
-                                  <span className="text-emerald-500/80">{o.buy_target !== null && o.buy_target !== undefined ? o.buy_target.toFixed(1) : '∞'}</span>
-                                  <span className="text-slate-500 mx-1">/</span>
-                                  <span className="text-red-500/80">{o.buy_stop_loss.toFixed(1)}</span>
-                                </>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-xs text-slate-400">
-                              {o.is_sar && o.active_leg === "BUY" ? (
-                                <span className="text-slate-600">—</span>
-                              ) : (
-                                <>
-                                  <span className="text-slate-200">{o.sell_entry.toFixed(1)}</span>
-                                  <span className="text-slate-500 mx-1">/</span>
-                                  <span className="text-emerald-500/80">{o.sell_target !== null && o.sell_target !== undefined ? o.sell_target.toFixed(1) : '∞'}</span>
-                                  <span className="text-slate-500 mx-1">/</span>
-                                  <span className="text-red-500/80">{o.sell_stop_loss.toFixed(1)}</span>
-                                </>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-xs font-bold text-white">${o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
-                            <td className={cn(
-                              "px-6 py-4 text-xs font-bold",
-                              o.pnl > 0 ? "text-emerald-400" : o.pnl < 0 ? "text-red-400" : "text-slate-400"
+              return (
+                <div className="space-y-8">
+                  {symbols.map(symbol => {
+                    const symbolOrders = grouped[symbol];
+                    // Sort chronologically within the group
+                    symbolOrders.sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+                    const symbolPnL = symbolOrders.reduce((sum, o) => sum + (o.pnl || 0), 0);
+
+                    return (
+                      <div key={symbol} className="space-y-3">
+                        <div className="flex items-center justify-between px-2">
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-bold text-white tracking-tight font-display">{symbol}</h3>
+                            <Badge variant="info" className="text-[0.65rem] px-2 py-0.5 font-bold uppercase tracking-wider">
+                              {symbolOrders.length} {symbolOrders.length === 1 ? "Trade" : "Trades"}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider font-display">Symbol PnL:</span>
+                            <span className={cn(
+                              "text-sm font-bold font-mono px-3 py-1 rounded-xl border",
+                              symbolPnL >= 0 
+                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-shadow-emerald" 
+                                : "bg-red-500/10 border-red-500/20 text-red-400 text-shadow-red"
                             )}>
-                              {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `$${o.pnl.toFixed(2)}` : "—"}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <span className={cn(
-                                "text-[0.65rem] font-bold uppercase border px-2 py-0.5 rounded",
-                                statusColors[o.status] || "text-slate-400 border-white/5"
-                              )}>
-                                {o.status}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </GlassCard>
+                              {symbolPnL >= 0 ? "+" : ""}${symbolPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+
+                        <GlassCard className="p-0 border-white/5 overflow-hidden">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="border-b border-white/5 bg-white/[0.01]">
+                                  <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Det. Time</th>
+                                  <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Trade Time</th>
+                                  <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Trigger Leg</th>
+                                  <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Buy Bracket (Entry/Tgt/SL)</th>
+                                  <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Sell Bracket (Entry/Tgt/SL)</th>
+                                  <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">LTP</th>
+                                  <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Sim P&L</th>
+                                  <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {symbolOrders.map((o, idx) => {
+                                  const statusColors: Record<string, string> = {
+                                    "PENDING": "text-amber-400 border-amber-500/20 bg-amber-500/5",
+                                    "ACTIVE": "text-blue-400 border-blue-500/20 bg-blue-500/5",
+                                    "TARGET HIT": "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",
+                                    "SL HIT": "text-red-400 border-red-500/20 bg-red-500/5",
+                                    "TRAILING SL HIT": "text-orange-400 border-orange-500/20 bg-orange-500/5",
+                                    "SQ OFF": "text-purple-400 border-purple-500/20 bg-purple-500/5"
+                                  };
+
+                                  return (
+                                    <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.005] transition-colors font-mono">
+                                      <td className="px-6 py-4 text-xs text-slate-400">{o.time}</td>
+                                      <td className="px-6 py-4 text-xs text-slate-300 font-bold">
+                                        {o.entry_time ? (
+                                          o.entry_time.includes("T") 
+                                            ? o.entry_time.split("T")[1].slice(0, 5) 
+                                            : o.entry_time.slice(0, 5)
+                                        ) : (
+                                          <span className="text-slate-600 font-normal font-display">Pending</span>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 text-xs">
+                                        {o.active_leg ? (
+                                          <Badge variant={o.active_leg === "BUY" ? "success" : "danger"} className="text-[0.6rem] py-0 px-1 font-bold">
+                                            {o.active_leg} (x{o.active_leg === "BUY" ? o.buy_qty : o.sell_qty})
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-slate-600">—</span>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 text-xs text-slate-400">
+                                        {o.is_sar && o.active_leg === "SELL" ? (
+                                          <span className="text-slate-600">—</span>
+                                        ) : (
+                                          <>
+                                            <span className="text-slate-200">{o.buy_entry.toFixed(1)}</span>
+                                            <span className="text-slate-500 mx-1">/</span>
+                                            <span className="text-emerald-500/80">{o.buy_target !== null && o.buy_target !== undefined ? o.buy_target.toFixed(1) : '∞'}</span>
+                                            <span className="text-slate-500 mx-1">/</span>
+                                            <span className="text-red-500/80">{o.buy_stop_loss.toFixed(1)}</span>
+                                          </>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 text-xs text-slate-400">
+                                        {o.is_sar && o.active_leg === "BUY" ? (
+                                          <span className="text-slate-600">—</span>
+                                        ) : (
+                                          <>
+                                            <span className="text-slate-200">{o.sell_entry.toFixed(1)}</span>
+                                            <span className="text-slate-500 mx-1">/</span>
+                                            <span className="text-emerald-500/80">{o.sell_target !== null && o.sell_target !== undefined ? o.sell_target.toFixed(1) : '∞'}</span>
+                                            <span className="text-slate-500 mx-1">/</span>
+                                            <span className="text-red-500/80">{o.sell_stop_loss.toFixed(1)}</span>
+                                          </>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 text-xs font-bold text-white">${o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
+                                      <td className={cn(
+                                        "px-6 py-4 text-xs font-bold",
+                                        o.pnl > 0 ? "text-emerald-400 font-bold" : o.pnl < 0 ? "text-red-400 font-bold" : "text-slate-400"
+                                      )}>
+                                        {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `$${o.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                                      </td>
+                                      <td className="px-6 py-4 text-right">
+                                        <span className={cn(
+                                          "text-[0.65rem] font-bold uppercase border px-2 py-0.5 rounded",
+                                          statusColors[o.status] || "text-slate-400 border-white/5"
+                                        )}>
+                                          {o.status}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </GlassCard>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </>
       )}
