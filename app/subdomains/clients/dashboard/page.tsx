@@ -133,7 +133,7 @@ export default function ClientDashboard() {
   }, []);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-8 pb-24 max-w-6xl mx-auto">
       <div className="flex justify-between items-end mb-10">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Signal Feed</h1>
@@ -304,58 +304,6 @@ export default function ClientDashboard() {
           </p>
         </div>
       </div>
-
-      {/* Watchlist Settings Card */}
-      <GlassCard className="mt-8 p-6 border-white/5 bg-slate-950/20">
-        <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/5">
-          <div>
-            <h4 className="text-md font-bold text-white font-display">My Monitored Instruments</h4>
-            <p className="text-xs text-text-secondary">Select custom stock symbols you want the bot to trade for your account.</p>
-          </div>
-          <button 
-            onClick={handleSaveWatchlist}
-            disabled={savingWatchlist}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-[0_0_10px_rgba(37,99,235,0.3)] hover:scale-[1.02]"
-          >
-            {savingWatchlist ? "Saving..." : "Save My Instruments"}
-          </button>
-        </div>
-
-        <form onSubmit={handleAddSymbol} className="flex gap-3 mb-4">
-          <input 
-            type="text"
-            value={newSymbol}
-            onChange={(e) => setNewSymbol(e.target.value)}
-            placeholder="Type symbol (e.g. INFOSYS, RELIANCE, TCS) and press Enter"
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold transition-all"
-          >
-            Add
-          </button>
-        </form>
-
-        <div className="flex flex-wrap gap-2 min-h-[48px] p-3 bg-black/20 border border-white/5 rounded-xl">
-          {watchlist.length === 0 ? (
-            <span className="text-xs text-slate-500 italic my-auto">No custom stocks selected. Add some symbols above.</span>
-          ) : (
-            watchlist.map(sym => (
-              <span key={sym} className="px-2.5 py-1 text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/25 rounded-lg flex items-center gap-1.5">
-                {sym}
-                <button 
-                  type="button" 
-                  onClick={() => handleRemoveSymbol(sym)}
-                  className="text-blue-400 hover:text-red-400 text-xs font-bold"
-                >
-                  ×
-                </button>
-              </span>
-            ))
-          )}
-        </div>
-      </GlassCard>
     </div>
   );
 }
