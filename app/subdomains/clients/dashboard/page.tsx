@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/GlassCard";
 import Badge from "@/components/ui/Badge";
-import { Bell, Zap, Info, Wallet, TrendingUp, Scan } from "lucide-react";
+import { Bell, Zap, Info, Wallet, TrendingUp, Scan, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MOCK_SIGNALS = [
@@ -18,6 +18,8 @@ export default function ClientDashboard() {
   const [activeScanSymbol, setActiveScanSymbol] = useState("TATASTEEL");
   const [scanMessage, setScanMessage] = useState("Scanning Indian Equity basket...");
   const [signals, setSignals] = useState<any[]>([]);
+  const [trades, setTrades] = useState<any[]>([]);
+  const [tradesLoading, setTradesLoading] = useState(true);
 
   useEffect(() => {
     async function loadFunds() {
@@ -43,7 +45,6 @@ export default function ClientDashboard() {
             // Keep only the latest entry for each unique stock
             const uniqueMap = new Map();
             data.forEach((s: any) => {
-              // Since the API returns signals with latest first, the first seen is the newest
               if (!uniqueMap.has(s.stock)) {
                 uniqueMap.set(s.stock, s);
               }
@@ -56,15 +57,32 @@ export default function ClientDashboard() {
       }
     }
 
+    async function loadTrades() {
+      try {
+        const res = await fetch("/api/trades");
+        if (res.ok) {
+          const data = await res.json();
+          setTrades(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error("Failed to load trades:", err);
+      } finally {
+        setTradesLoading(false);
+      }
+    }
+
     loadFunds();
     loadSignals();
+    loadTrades();
 
     const fundsInterval = setInterval(loadFunds, 30000);
     const signalsInterval = setInterval(loadSignals, 15000);
+    const tradesInterval = setInterval(loadTrades, 15000);
 
     return () => {
       clearInterval(fundsInterval);
       clearInterval(signalsInterval);
+      clearInterval(tradesInterval);
     };
   }, []);
 
@@ -75,7 +93,7 @@ export default function ClientDashboard() {
     }, 40);
 
     const tickerInterval = setInterval(() => {
-      const symbols = ["TATASTEEL", "POLYCAB", "HAVELLS", "DLF", "ADANIENSOL"];
+      const symbols = ["TATASTEEL", "HAVELLS", "DLF", "ADANIENSOL", "IDEA"];
       const randomSymbol = symbols[Math.floor(Math.random() * symbols.length)];
       setActiveScanSymbol(randomSymbol);
       
@@ -95,22 +113,32 @@ export default function ClientDashboard() {
     };
   }, []);
 
+  // Helper to group trades by symbol
+  const groupTradesBySymbol = (tradeList: any[]) => {
+    return tradeList.reduce((acc: any, t: any) => {
+      const sym = t.instrument || t.symbol || "UNKNOWN";
+      if (!acc[sym]) acc[sym] = [];
+      acc[sym].push(t);
+      return acc;
+    }, {});
+  };
+
   return (
-    <div className="p-8 pb-24 max-w-6xl mx-auto">
-      <div className="flex justify-between items-end mb-10">
+    <div className="p-8 pb-24 max-w-6xl mx-auto space-y-10">
+      <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Signal Feed</h1>
-          <p className="text-text-secondary">Real-time TradingView Blue Candle signals.</p>
+          <p className="text-text-secondary text-sm mt-1">Real-time TradingView Blue Candle signals and live trade books.</p>
         </div>
         <div className="glass px-4 py-2 rounded-xl flex items-center gap-2">
-           <Zap className="w-4 h-4 text-warning fill-warning" />
+           <Zap className="w-4 h-4 text-warning fill-warning animate-pulse" />
            <span className="text-xs font-bold text-white uppercase tracking-wider">Live Updates Enabled</span>
         </div>
       </div>
 
       {/* Funds Overview Widget */}
       {funds && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <GlassCard className="p-6 border-white/5 flex items-center justify-between">
             <div>
               <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">SMC Available Limit</p>
@@ -152,7 +180,7 @@ export default function ClientDashboard() {
       )}
 
       {/* Visual Scanner radar */}
-      <GlassCard glowColor="rgba(16, 185, 129, 0.15)" className="min-h-[380px] p-8 flex flex-col justify-between overflow-hidden relative mb-10 border-white/5">
+      <GlassCard glowColor="rgba(16, 185, 129, 0.15)" className="min-h-[360px] p-8 flex flex-col justify-between overflow-hidden relative border-white/5">
         <div className="flex justify-between items-start mb-6 border-b border-white/5 pb-4">
           <div>
             <h3 className="text-xl font-bold text-white font-display flex items-center gap-2">
@@ -214,52 +242,219 @@ export default function ClientDashboard() {
         </div>
       </GlassCard>
 
-      <div className="space-y-6">
-        {(signals.length > 0 ? signals : MOCK_SIGNALS).map((signal) => (
-          <GlassCard key={signal.id} className="relative group overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-6">
-              <div className="flex items-center gap-6">
-                <div className={cn(
-                  "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-lg",
-                  (signal.type === "BUY" || signal.status === "BUY") ? "bg-success/20 text-success" : "bg-danger/20 text-danger"
-                )}>
-                  {(signal.type === "BUY" || signal.status === "BUY") ? "B" : "S"}
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white tracking-tight">{signal.stock}</h3>
-                  <p className="text-text-secondary text-sm">Detected at {signal.time}</p>
-                </div>
-              </div>
+      {/* Signal Feed Cards */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-bold text-white tracking-tight border-l-2 border-accent-cyan pl-2 mb-4">
+          Latest Scanner Signals
+        </h3>
+        {signals.length === 0 ? (
+          <div className="text-center text-text-secondary text-sm py-12 glass rounded-2xl border-white/5">
+            No signals triggered in the current session.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {signals.map((signal) => (
+              <GlassCard key={signal.id} className="relative group overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-6">
+                  <div className="flex items-center gap-6">
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-lg",
+                      (signal.type === "BUY" || signal.status === "BUY") ? "bg-success/20 text-success" : "bg-danger/20 text-danger"
+                    )}>
+                      {(signal.type === "BUY" || signal.status === "BUY") ? "B" : "S"}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white tracking-tight">{signal.stock}</h3>
+                      <p className="text-text-secondary text-xs mt-0.5">Detected at {signal.time}</p>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-3 gap-8 flex-1 max-w-xl">
-                <div>
-                  <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Entry Price</p>
-                  <p className="text-lg font-mono font-bold text-white">₹{(signal.entry || signal.high || 0).toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Stop Loss</p>
-                  <p className="text-lg font-mono font-bold text-danger/80">₹{(signal.sl || signal.low || 0).toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Target (+1%)</p>
-                  <p className="text-lg font-mono font-bold text-success">
-                    ₹{(signal.target || (signal.high ? signal.high * 1.01 : 0) || 0).toFixed(2)}
-                  </p>
-                </div>
-              </div>
+                  <div className="grid grid-cols-3 gap-8 flex-1 max-w-xl">
+                    <div>
+                      <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Entry Price</p>
+                      <p className="text-base font-mono font-bold text-white">₹{(signal.entry || signal.high || 0).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Stop Loss</p>
+                      <p className="text-base font-mono font-bold text-danger/80">₹{(signal.sl || signal.low || 0).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Target (+1%)</p>
+                      <p className="text-base font-mono font-bold text-success">
+                        ₹{(signal.target || (signal.high ? signal.high * 1.01 : 0) || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="text-right">
-                <Badge variant={signal.status === "Active" || signal.status === "DETECTED" ? "info" : "success"} className="px-4 py-1 text-sm mb-2">
-                  {signal.status}
-                </Badge>
-                <p className="text-[10px] text-text-secondary italic">Updated live</p>
-              </div>
-            </div>
-          </GlassCard>
-        ))}
+                  <div className="text-right">
+                    <Badge variant={signal.status === "Active" || signal.status === "DETECTED" ? "info" : "success"} className="px-4 py-1 text-sm mb-2">
+                      {signal.status}
+                    </Badge>
+                    <p className="text-[10px] text-text-secondary italic">Updated live</p>
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="mt-12 p-6 glass rounded-2xl border-accent-cyan/20 bg-accent-cyan/5 flex gap-4">
+      {/* Live Order Book (Same layout as simulation) */}
+      <div className="space-y-6">
+        <h3 className="text-lg font-bold text-white tracking-tight border-l-2 border-accent-violet pl-2">
+          Live Order & Position Book
+        </h3>
+        
+        {tradesLoading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
+            <Loader2 className="w-8 h-8 animate-spin mb-2 text-accent-violet" />
+            <span className="text-xs">Loading live trades...</span>
+          </div>
+        ) : trades.length === 0 ? (
+          <div className="text-center text-text-secondary text-sm py-12 glass rounded-2xl border-white/5">
+            No live trades executed in the current session. Live trades appear here as soon as Kite/Upstox triggers them.
+          </div>
+        ) : (
+          (() => {
+            const grouped = groupTradesBySymbol(trades);
+            const symbols = Object.keys(grouped).sort();
+
+            return (
+              <div className="space-y-8">
+                {symbols.map(symbol => {
+                  const symbolOrders = grouped[symbol];
+                  symbolOrders.sort((a: any, b: any) => (a.time || "").localeCompare(b.time || ""));
+                  const symbolPnL = symbolOrders.reduce((sum: number, o: any) => sum + (o.pnl || 0), 0);
+                  const symbolCapital = symbolOrders.reduce((sum: number, o: any) => sum + ((o.active_leg === "BUY" ? o.buy_qty * o.buy_entry : o.sell_qty * o.sell_entry) || o.buy_qty * o.buy_entry || 20000), 0);
+                  const symbolPnLPct = symbolCapital > 0 ? (symbolPnL / symbolCapital) * 100 : 0;
+
+                  return (
+                    <div key={symbol} className="space-y-3">
+                      <div className="flex items-center justify-between px-2">
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-lg font-bold text-white tracking-tight font-display">{symbol}</h3>
+                          <Badge variant="info" className="text-[0.65rem] px-2 py-0.5 font-bold uppercase tracking-wider">
+                            {symbolOrders.length} {symbolOrders.length === 1 ? "Trade" : "Trades"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider font-display">Symbol PnL:</span>
+                          <span className={cn(
+                            "text-sm font-bold font-mono px-3 py-1 rounded-xl border",
+                            symbolPnL >= 0 
+                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-shadow-emerald" 
+                              : "bg-red-500/10 border-red-500/20 text-red-400 text-shadow-red"
+                          )}>
+                            {symbolPnL >= 0 ? "+" : ""}₹ {symbolPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({symbolPnL >= 0 ? "+" : ""}{symbolPnLPct.toFixed(2)}%)
+                          </span>
+                        </div>
+                      </div>
+
+                      <GlassCard className="p-0 border-white/5 overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-white/5 bg-white/[0.01]">
+                                <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Det. Time</th>
+                                <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Trade Time</th>
+                                <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Trigger Leg</th>
+                                <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Buy Bracket (Entry/Tgt/SL)</th>
+                                <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Sell Bracket (Entry/Tgt/SL)</th>
+                                <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">LTP</th>
+                                <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider">Realised PnL</th>
+                                <th className="px-6 py-3.5 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5 text-xs font-mono">
+                              {symbolOrders.map((o: any, idx: number) => {
+                                const statusColors: Record<string, string> = {
+                                  "PENDING": "text-amber-400 border-amber-500/20 bg-amber-500/5",
+                                  "ACTIVE": "text-blue-400 border-blue-500/20 bg-blue-500/5",
+                                  "TARGET HIT": "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",
+                                  "SL HIT": "text-red-400 border-red-500/20 bg-red-500/5",
+                                  "TRAILING SL HIT": "text-orange-400 border-orange-500/20 bg-orange-500/5",
+                                  "SQ OFF": "text-purple-400 border-purple-500/20 bg-purple-500/5"
+                                };
+
+                                return (
+                                  <tr key={idx} className="hover:bg-white/[0.005] transition-colors">
+                                    <td className="px-6 py-4 text-slate-400">{o.time}</td>
+                                    <td className="px-6 py-4 text-slate-300 font-bold">
+                                      {o.entry_time ? (
+                                        o.entry_time.includes("T") 
+                                          ? o.entry_time.split("T")[1].slice(0, 5) 
+                                          : o.entry_time.slice(0, 5)
+                                      ) : (
+                                        <span className="text-slate-600 font-normal font-display">Pending</span>
+                                      )}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                      {o.active_leg ? (
+                                        <Badge variant={o.active_leg === "BUY" ? "success" : "danger"} className="text-[0.6rem] py-0 px-1 font-bold">
+                                          {o.active_leg} (x{o.active_leg === "BUY" ? o.buy_qty : o.sell_qty})
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-slate-600">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-6 py-4 text-slate-400 font-sans">
+                                      {o.is_sar && o.active_leg === "SELL" ? (
+                                        <span className="text-slate-600">—</span>
+                                      ) : (
+                                        <>
+                                          <span className="text-slate-200">{o.buy_entry.toFixed(1)}</span>
+                                          <span className="text-slate-500 mx-1">/</span>
+                                          <span className="text-emerald-500/80">{o.buy_target !== null && o.buy_target !== undefined ? o.buy_target.toFixed(1) : '∞'}</span>
+                                          <span className="text-slate-500 mx-1">/</span>
+                                          <span className="text-red-500/80">{o.buy_stop_loss.toFixed(1)}</span>
+                                        </>
+                                      )}
+                                    </td>
+                                    <td className="px-6 py-4 text-slate-400 font-sans">
+                                      {o.is_sar && o.active_leg === "BUY" ? (
+                                        <span className="text-slate-600">—</span>
+                                      ) : (
+                                        <>
+                                          <span className="text-slate-200">{o.sell_entry.toFixed(1)}</span>
+                                          <span className="text-slate-500 mx-1">/</span>
+                                          <span className="text-emerald-500/80">{o.sell_target !== null && o.sell_target !== undefined ? o.sell_target.toFixed(1) : '∞'}</span>
+                                          <span className="text-slate-500 mx-1">/</span>
+                                          <span className="text-red-500/80">{o.sell_stop_loss.toFixed(1)}</span>
+                                        </>
+                                      )}
+                                    </td>
+                                    <td className="px-6 py-4 text-white font-bold font-mono">₹{o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
+                                    <td className={cn(
+                                      "px-6 py-4 font-bold font-mono",
+                                      o.pnl > 0 ? "text-emerald-400" : o.pnl < 0 ? "text-red-400" : "text-slate-400"
+                                    )}>
+                                      {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `₹${o.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                      <span className={cn(
+                                        "text-[0.65rem] font-bold uppercase border px-2 py-0.5 rounded",
+                                        statusColors[o.status] || "text-slate-400 border-white/5"
+                                      )}>
+                                        {o.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </GlassCard>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()
+        )}
+      </div>
+
+      <div className="p-6 glass rounded-2xl border-accent-cyan/20 bg-accent-cyan/5 flex gap-4">
         <Info className="w-6 h-6 text-accent-cyan shrink-0" />
         <div className="text-sm">
           <p className="font-bold text-white mb-1">Trading Rule Reminder</p>

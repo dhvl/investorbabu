@@ -411,6 +411,8 @@ export default function CryptoSimulationPage() {
                     // Sort chronologically within the group
                     symbolOrders.sort((a, b) => (a.time || "").localeCompare(b.time || ""));
                     const symbolPnL = symbolOrders.reduce((sum, o) => sum + (o.pnl || 0), 0);
+                    const symbolCapital = symbolOrders.reduce((sum, o) => sum + ((o.active_leg === "BUY" ? o.buy_qty * o.buy_entry : o.sell_qty * o.sell_entry) || o.buy_qty * o.buy_entry || 10000), 0);
+                    const symbolPnLPct = symbolCapital > 0 ? (symbolPnL / symbolCapital) * 100 : 0;
 
                     return (
                       <div key={symbol} className="space-y-3">
@@ -429,7 +431,7 @@ export default function CryptoSimulationPage() {
                                 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-shadow-emerald" 
                                 : "bg-red-500/10 border-red-500/20 text-red-400 text-shadow-red"
                             )}>
-                              {symbolPnL >= 0 ? "+" : ""}${symbolPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {symbolPnL >= 0 ? "+" : ""}${symbolPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({symbolPnL >= 0 ? "+" : ""}{symbolPnLPct.toFixed(2)}%)
                             </span>
                           </div>
                         </div>
