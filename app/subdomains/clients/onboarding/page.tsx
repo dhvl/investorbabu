@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [plan, setPlan] = useState("starter");
+  const [chatId, setChatId] = useState("8208852056");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [capital, setCapital] = useState("10000");
@@ -27,13 +28,32 @@ export default function OnboardingPage() {
   const nextStep = () => setStep(prev => Math.min(prev + 1, 4));
   const prevStep = () => setStep(prev => Math.max(prev - 1, 1));
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     setIsVerifying(true);
     // Register the client configurations locally
     localStorage.setItem("client_plan", plan);
+    localStorage.setItem("client_chat_id", chatId);
     localStorage.setItem("client_api_key", apiKey);
     localStorage.setItem("client_api_secret", apiSecret);
     localStorage.setItem("client_capital", capital);
+
+    try {
+      await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve",
+          chat_id: chatId,
+          name: "Live Subscriber (" + chatId + ")",
+          type: "live",
+          whitelisted_instruments: ["TATASTEEL", "POLYCAB", "HAVELLS", "DLF", "ADANIENSOL"],
+          broker: "smc"
+        })
+      });
+    } catch (e) {
+      console.error("Could not auto-register subscriber:", e);
+    }
+
     setTimeout(() => {
       setIsVerifying(false);
       setVerified(true);
@@ -118,6 +138,16 @@ export default function OnboardingPage() {
               We execute trades securely on your behalf. Enter your API key and secret from your SMC Developer Console.
             </p>
             <GlassCard className="space-y-6 max-w-xl mx-auto">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-text-secondary uppercase tracking-wider">Telegram Chat ID</label>
+                <input 
+                  type="text" 
+                  value={chatId}
+                  onChange={(e) => setChatId(e.target.value)}
+                  placeholder="Enter Telegram Chat ID (e.g., 8288852056)"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-text-secondary uppercase tracking-wider">SMC API Key</label>
                 <input 

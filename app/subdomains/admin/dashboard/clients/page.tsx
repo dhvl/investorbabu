@@ -42,6 +42,7 @@ export default function ClientsPage() {
   
   // Form fields
   const [formData, setFormData] = useState({
+    chatId: "",
     name: "",
     type: "chatbot" as "chatbot" | "live",
     whitelisted: [] as string[],
@@ -50,6 +51,20 @@ export default function ClientsPage() {
   
   const [tagInput, setTagInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Open Add Modal
+  const openAddClient = () => {
+    setSelectedChatId("");
+    setFormData({
+      chatId: "",
+      name: "",
+      type: "chatbot",
+      whitelisted: ["TATASTEEL", "POLYCAB", "HAVELLS", "DLF", "ADANIENSOL"],
+      broker: "upstox"
+    });
+    setTagInput("");
+    setShowApproveModal(true);
+  };
 
   useEffect(() => {
     fetchClients();
@@ -95,9 +110,10 @@ export default function ClientsPage() {
   const openApprove = (chatId: string, name: string) => {
     setSelectedChatId(chatId);
     setFormData({
+      chatId: chatId,
       name: name,
       type: "chatbot",
-      whitelisted: ["XAUUSD", "XAGUSD", "OILUSD", "BTCUSD"],
+      whitelisted: ["TATASTEEL", "POLYCAB", "HAVELLS", "DLF", "ADANIENSOL"],
       broker: "upstox"
     });
     setTagInput("");
@@ -108,6 +124,7 @@ export default function ClientsPage() {
   const openEdit = (chatId: string, client: Client) => {
     setSelectedChatId(chatId);
     setFormData({
+      chatId: chatId,
       name: client.name,
       type: client.type,
       whitelisted: client.whitelisted_instruments || [],
@@ -117,8 +134,13 @@ export default function ClientsPage() {
     setShowEditModal(true);
   };
 
-  // Approve Client Action
+  // Approve Client Action (used for both approval and manual add)
   const handleApprove = async () => {
+    const finalChatId = selectedChatId || formData.chatId;
+    if (!finalChatId) {
+      alert("Chat ID is required");
+      return;
+    }
     setSubmitting(true);
     try {
       const resp = await fetch("/api/clients", {
@@ -126,7 +148,7 @@ export default function ClientsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "approve",
-          chat_id: selectedChatId,
+          chat_id: finalChatId,
           name: formData.name,
           type: formData.type,
           whitelisted_instruments: formData.whitelisted,
@@ -199,6 +221,12 @@ export default function ClientsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-white font-display">Client Management</h1>
           <p className="text-slate-400 text-sm mt-1">Configure bot signal recipients, whitelists, and live trading settings.</p>
         </div>
+        <button 
+          onClick={openAddClient}
+          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm flex items-center gap-2 shadow-[0_0_15px_rgba(37,99,235,0.45)] transition-all hover:scale-[1.02]"
+        >
+          <Plus className="w-4 h-4" /> Add Client
+        </button>
       </div>
 
       {/* Tabs */}
@@ -374,7 +402,9 @@ export default function ClientsPage() {
           <div className="bg-[#0f0f16] border border-white/10 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-zoom-in">
             {/* Modal Title */}
             <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/5">
-              <h2 className="font-bold text-lg text-white font-display">Approve Registration Request</h2>
+              <h2 className="font-bold text-lg text-white font-display">
+                {selectedChatId ? "Approve Registration Request" : "Add New Subscriber Client"}
+              </h2>
               <button onClick={() => setShowApproveModal(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
@@ -382,6 +412,19 @@ export default function ClientsPage() {
 
             {/* Modal Content */}
             <div className="p-6 flex flex-col gap-4">
+              {!selectedChatId && (
+                <div>
+                  <label className="text-xs text-slate-400 font-bold uppercase tracking-wider block mb-1">Telegram Chat ID</label>
+                  <input 
+                    type="text" 
+                    value={formData.chatId}
+                    onChange={(e) => setFormData(prev => ({ ...prev, chatId: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white font-medium focus:border-blue-500 focus:outline-none transition-all"
+                    placeholder="Enter Telegram Chat ID (e.g., 8288852056)"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="text-xs text-slate-400 font-bold uppercase tracking-wider block mb-1">User Full Name</label>
                 <input 
