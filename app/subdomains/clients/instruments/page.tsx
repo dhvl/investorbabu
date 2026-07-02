@@ -335,7 +335,7 @@ export default function ClientInstrumentsPage() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-8 pb-24 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Scanned Instruments</h1>
