@@ -42,12 +42,12 @@ export default function AdminSettingsPage() {
         <section>
           <div className="flex items-center gap-2 mb-4">
             <Key className="w-5 h-5 text-accent-cyan" />
-            <h2 className="text-xl font-bold text-white">Upstox Broker Credentials</h2>
+            <h2 className="text-xl font-bold text-white">SMC Trade Credentials</h2>
           </div>
           <GlassCard className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-text-secondary">Upstox API Key</label>
+                <label className="text-sm font-medium text-text-secondary">SMC API Key</label>
                 <div className="relative">
                   <input 
                     type={showKeys['upstoxKey'] ? "text" : "password"} 
@@ -61,7 +61,7 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-text-secondary">Upstox API Secret</label>
+                <label className="text-sm font-medium text-text-secondary">SMC API Secret</label>
                 <div className="relative">
                   <input 
                     type={showKeys['upstoxSecret'] ? "text" : "password"} 

@@ -40,6 +40,7 @@ const MOCK_TRENDS: MarketTrend[] = [
 export default function DashboardOverview() {
   const [summary, setSummary] = useState<any>(null);
   const [status, setStatus] = useState<any>(null);
+  const [funds, setFunds] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -53,13 +54,17 @@ export default function DashboardOverview() {
     async function fetchData() {
       try {
         setLoading(true);
-        const [summaryData, statusData] = await Promise.all([
+        const [summaryData, statusData, fundsRes] = await Promise.all([
           api.dashboard.getSummary(),
-          api.dashboard.getStatus()
+          api.dashboard.getStatus(),
+          fetch("/api/broker/funds").then(res => res.json()).catch(() => null)
         ]);
         
         setSummary(summaryData);
         setStatus(statusData);
+        if (fundsRes && fundsRes.status === "success") {
+          setFunds(fundsRes.data);
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -177,8 +182,8 @@ export default function DashboardOverview() {
           glowColor="rgba(168, 85, 247, 0.25)"
         />
         <StatCard 
-          label="Capital Base" 
-          value={10000} 
+          label="SMC Available Limit" 
+          value={funds ? parseFloat(funds.available_limit) : 100000} 
           prefix="₹"
           icon={<Wallet className="w-4 h-4" />}
           glowColor="rgba(59, 130, 246, 0.25)"

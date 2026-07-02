@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/GlassCard";
 import Badge from "@/components/ui/Badge";
-import { Bell, Zap, Info } from "lucide-react";
+import { Bell, Zap, Info, Wallet, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MOCK_SIGNALS = [
@@ -12,6 +13,27 @@ const MOCK_SIGNALS = [
 ];
 
 export default function ClientDashboard() {
+  const [funds, setFunds] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadFunds() {
+      try {
+        const res = await fetch("/api/broker/funds");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === "success") {
+            setFunds(data.data);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load funds:", err);
+      }
+    }
+    loadFunds();
+    const interval = setInterval(loadFunds, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex justify-between items-end mb-10">
@@ -24,6 +46,49 @@ export default function ClientDashboard() {
            <span className="text-xs font-bold text-white uppercase tracking-wider">Live Updates Enabled</span>
         </div>
       </div>
+
+      {/* Funds Overview Widget */}
+      {funds && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+          <GlassCard className="p-6 border-white/5 flex items-center justify-between">
+            <div>
+              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">SMC Available Limit</p>
+              <h3 className="text-2xl font-bold font-mono text-white">₹{parseFloat(funds.available_limit).toLocaleString(undefined, {minimumFractionDigits: 2})}</h3>
+            </div>
+            <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl">
+              <Wallet className="w-5 h-5" />
+            </div>
+          </GlassCard>
+
+          <GlassCard className="p-6 border-white/5 flex items-center justify-between">
+            <div>
+              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">Active Leverage</p>
+              <h3 className="text-2xl font-bold font-mono text-white">{funds.leverage}</h3>
+            </div>
+            <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl">
+              <Zap className="w-5 h-5" />
+            </div>
+          </GlassCard>
+
+          <GlassCard className="p-6 border-white/5 flex items-center justify-between">
+            <div>
+              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">Daily Realised P&L</p>
+              <h3 className={cn(
+                "text-2xl font-bold font-mono",
+                parseFloat(funds.realised_profit) >= 0 ? "text-emerald-400" : "text-red-400"
+              )}>
+                ₹{parseFloat(funds.realised_profit).toLocaleString(undefined, {minimumFractionDigits: 2})}
+              </h3>
+            </div>
+            <div className={cn(
+              "p-3 rounded-2xl",
+              parseFloat(funds.realised_profit) >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+            )}>
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </GlassCard>
+        </div>
+      )}
 
       <div className="space-y-6">
         {MOCK_SIGNALS.map((signal) => (

@@ -29,6 +29,11 @@ export default function OnboardingPage() {
 
   const handleVerify = () => {
     setIsVerifying(true);
+    // Register the client configurations locally
+    localStorage.setItem("client_plan", plan);
+    localStorage.setItem("client_api_key", apiKey);
+    localStorage.setItem("client_api_secret", apiSecret);
+    localStorage.setItem("client_capital", capital);
     setTimeout(() => {
       setIsVerifying(false);
       setVerified(true);
@@ -103,18 +108,18 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* STEP 2: Upstox Connection */}
+        {/* STEP 2: SMC Connection */}
         {step === 2 && (
           <div className="space-y-6">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Key className="w-5 h-5 text-accent-cyan" /> Secure Upstox Connection
+              <Key className="w-5 h-5 text-accent-cyan" /> Secure SMC Trade Connection
             </h2>
             <p className="text-xs text-text-secondary">
-              We execute trades securely on your behalf. Create an API key in your Upstox developer console and paste the credentials here.
+              We execute trades securely on your behalf. Enter your API key and secret from your SMC Developer Console.
             </p>
             <GlassCard className="space-y-6 max-w-xl mx-auto">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-text-secondary uppercase tracking-wider">Upstox API Key</label>
+                <label className="text-xs font-bold text-text-secondary uppercase tracking-wider">SMC API Key</label>
                 <input 
                   type="text" 
                   value={apiKey}
@@ -124,7 +129,7 @@ export default function OnboardingPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-text-secondary uppercase tracking-wider">Upstox API Secret</label>
+                <label className="text-xs font-bold text-text-secondary uppercase tracking-wider">SMC API Secret</label>
                 <input 
                   type="password" 
                   value={apiSecret}
@@ -185,7 +190,7 @@ export default function OnboardingPage() {
             <GlassCard className="text-left text-xs space-y-2 border-white/5 bg-slate-950">
               <p className="text-slate-500 font-bold">DEPLOYMENT REPORT:</p>
               <p><span className="text-slate-400">Plan:</span> <span className="font-bold text-white uppercase">{plan}</span></p>
-              <p><span className="text-slate-400">Broker:</span> <span className="font-bold text-white">UPSTOX LIVE</span></p>
+              <p><span className="text-slate-400">Broker:</span> <span className="font-bold text-white">SMC TRADE LIVE</span></p>
               <p><span className="text-slate-400">Trading Limits:</span> <span className="font-bold text-white">₹{Number(capital).toLocaleString()} per symbol</span></p>
             </GlassCard>
           </div>
