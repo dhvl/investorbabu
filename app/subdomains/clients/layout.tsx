@@ -20,6 +20,7 @@ export default function ClientLayout({
 
   const navItems = [
     { id: "dashboard", label: "Signal Feed", icon: Bell, href: "/dashboard" },
+    { id: "instruments", label: "My Instruments", icon: TrendingUp, href: "/instruments" },
     { id: "onboarding", label: "Onboarding Wizard", icon: UserPlus, href: "/onboarding" },
     { id: "subscription", label: "Subscription", icon: CreditCard, href: "/subscription" },
   ];
