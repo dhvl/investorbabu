@@ -29,9 +29,9 @@ export default function ClientLayout({
   if (pathname === "/login" || pathname === "/") return <>{children}</>;
 
   return (
-    <div className="flex min-h-screen bg-[#0a0a0f] overflow-y-auto">
+    <div className="flex min-h-screen bg-[#0a0a0f]">
       {/* Client Sidebar */}
-      <aside className="w-64 border-r border-white/5 p-6 flex flex-col gap-8 sticky top-0 h-fit max-h-screen bg-black/20 backdrop-blur-xl">
+      <aside className="w-64 border-r border-white/5 p-6 flex flex-col gap-8 bg-black/20 backdrop-blur-xl">
         <Link href="/dashboard" className="flex items-center gap-3 px-2">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.3)]">
             <TrendingUp className="text-white w-5 h-5" />
@@ -66,7 +66,7 @@ export default function ClientLayout({
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-y-auto">
+      <div className="flex-1 flex flex-col min-h-screen">
         <header className="flex justify-between items-center px-8 py-6 sticky top-0 z-10 bg-[#0a0a0f]/60 backdrop-blur-xl border-b border-white/5">
            <div>
              <h2 className="text-sm font-medium text-text-secondary uppercase tracking-widest font-display">Client Portal</h2>
