@@ -166,41 +166,41 @@ export default function ClientInstrumentsPage() {
     }
   };
 
-  const renderColumn = (
+  const renderMarketSection = (
     title: string, 
     marketType: 'in' | 'us' | 'crypto', 
     list: any[], 
     placeholder: string
   ) => {
     return (
-      <GlassCard className="flex flex-col h-[550px] p-0 overflow-hidden border-white/5 bg-white/[0.01]">
-        {/* Column Header */}
-        <div className="flex justify-between items-center px-5 py-4 border-b border-white/5 bg-white/[0.02]">
+      <div className="space-y-4">
+        {/* Section Header */}
+        <div className="flex justify-between items-center pb-3 border-b border-white/10">
           <div>
-            <h2 className="text-lg font-bold text-white tracking-tight">{title}</h2>
+            <h2 className="text-xl font-bold text-white tracking-tight">{title}</h2>
             <span className="text-xs text-text-secondary">{list.length} active monitors</span>
           </div>
           <button
             onClick={() => setAddMarket(marketType)}
             className="p-2 bg-gradient-to-r from-accent-cyan to-accent-violet rounded-lg hover:scale-105 transition-all text-white shadow-md shadow-accent-cyan/10"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Instruments List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center h-full text-text-secondary">
-              <Loader2 className="w-6 h-6 animate-spin mb-2" />
-              <span className="text-xs">Loading...</span>
-            </div>
-          ) : list.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-center text-text-secondary text-sm p-4">
-              {placeholder}
-            </div>
-          ) : (
-            list.map((stock) => {
+        {/* Instruments Grid */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
+            <Loader2 className="w-8 h-8 animate-spin mb-2" />
+            <span className="text-xs">Loading...</span>
+          </div>
+        ) : list.length === 0 ? (
+          <div className="text-center text-text-secondary text-sm py-8 glass rounded-xl border-white/5">
+            {placeholder}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {list.map((stock) => {
               const itemConfig = configs[stock.symbol] || {
                 currency: marketType === 'in' ? 'INR' : 'USD',
                 sim: { capital: 10000.0, lot_size: 0.0 },
@@ -210,9 +210,9 @@ export default function ClientInstrumentsPage() {
               const isEditing = editingSymbol === stock.symbol;
 
               return (
-                <div 
+                <GlassCard 
                   key={stock.id} 
-                  className={`flex flex-col p-4 bg-white/[0.02] border ${isEditing ? 'border-accent-cyan/40 bg-accent-cyan/[0.02]' : 'border-white/5'} rounded-xl transition-all`}
+                  className={`flex flex-col p-5 border ${isEditing ? 'border-accent-cyan/40 bg-accent-cyan/[0.02]' : 'border-white/5'} rounded-xl transition-all`}
                 >
                   <div className="flex justify-between items-center">
                     <div className="flex flex-col">
@@ -325,12 +325,12 @@ export default function ClientInstrumentsPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </GlassCard>
               );
-            })
-          )}
-        </div>
-      </GlassCard>
+            })}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -361,7 +361,7 @@ export default function ClientInstrumentsPage() {
         </div>
       </div>
 
-      <div className="mb-6 p-4 glass rounded-xl border-accent-cyan/10 bg-accent-cyan/[0.02] flex gap-3 text-xs">
+      <div className="mb-8 p-4 glass rounded-xl border-accent-cyan/10 bg-accent-cyan/[0.02] flex gap-3 text-xs">
         <HelpCircle className="w-5 h-5 text-accent-cyan shrink-0" />
         <div className="text-text-secondary leading-relaxed">
           <span className="font-bold text-white block mb-0.5">Sizing Calculation Hierarchy:</span>
@@ -370,23 +370,23 @@ export default function ClientInstrumentsPage() {
         </div>
       </div>
 
-      {/* Grid of Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {renderColumn(
+      {/* Grid of Sections */}
+      <div className="space-y-12">
+        {renderMarketSection(
           "Indian Stocks (NSE)", 
           "in", 
           stocksIn, 
           "No Indian stocks configured. Click '+' to add NSE tickers."
         )}
         
-        {showUs && renderColumn(
+        {showUs && renderMarketSection(
           "US Commodities", 
           "us", 
           stocksUs, 
           "No US commodities configured. Click '+' to add futures symbols."
         )}
 
-        {showCrypto && renderColumn(
+        {showCrypto && renderMarketSection(
           "Crypto Market", 
           "crypto", 
           stocksCrypto, 
