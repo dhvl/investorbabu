@@ -40,7 +40,15 @@ export default function ClientDashboard() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
-            setSignals(data);
+            // Keep only the latest entry for each unique stock
+            const uniqueMap = new Map();
+            data.forEach((s: any) => {
+              // Since the API returns signals with latest first, the first seen is the newest
+              if (!uniqueMap.has(s.stock)) {
+                uniqueMap.set(s.stock, s);
+              }
+            });
+            setSignals(Array.from(uniqueMap.values()));
           }
         }
       } catch (err) {
