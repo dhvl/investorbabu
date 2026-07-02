@@ -17,12 +17,7 @@ export default function ClientDashboard() {
   const [radarAngle, setRadarAngle] = useState(0);
   const [activeScanSymbol, setActiveScanSymbol] = useState("TATASTEEL");
   const [scanMessage, setScanMessage] = useState("Scanning Indian Equity basket...");
-
-  const [clientData, setClientData] = useState<any>(null);
-  const [watchlist, setWatchlist] = useState<string[]>([]);
-  const [newSymbol, setNewSymbol] = useState("");
-  const [savingWatchlist, setSavingWatchlist] = useState(false);
-  const [chatId, setChatId] = useState("");
+  const [signals, setSignals] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadFunds() {
@@ -38,72 +33,32 @@ export default function ClientDashboard() {
         console.error("Failed to load funds:", err);
       }
     }
-    loadFunds();
-    const interval = setInterval(loadFunds, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
-  useEffect(() => {
-    const savedChatId = localStorage.getItem("client_chat_id") || "8208852056";
-    setChatId(savedChatId);
-
-    async function loadClientData() {
+    async function loadSignals() {
       try {
-        const res = await fetch("/api/clients");
+        const res = await fetch("/api/signals");
         if (res.ok) {
           const data = await res.json();
-          if (data.status === "ok" && data.clients && data.clients[savedChatId]) {
-            setClientData(data.clients[savedChatId]);
-            setWatchlist(data.clients[savedChatId].whitelisted_instruments || []);
+          if (Array.isArray(data)) {
+            setSignals(data);
           }
         }
       } catch (err) {
-        console.error("Failed to load client data:", err);
+        console.error("Failed to load signals:", err);
       }
     }
-    loadClientData();
+
+    loadFunds();
+    loadSignals();
+
+    const fundsInterval = setInterval(loadFunds, 30000);
+    const signalsInterval = setInterval(loadSignals, 15000);
+
+    return () => {
+      clearInterval(fundsInterval);
+      clearInterval(signalsInterval);
+    };
   }, []);
-
-  const handleSaveWatchlist = async () => {
-    setSavingWatchlist(true);
-    try {
-      const resp = await fetch("/api/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update",
-          chat_id: chatId,
-          name: clientData?.name || "Live Subscriber",
-          type: clientData?.type || "live",
-          whitelisted_instruments: watchlist,
-          broker: clientData?.broker || "smc"
-        })
-      });
-      if (resp.ok) {
-        alert("Watchlist updated successfully!");
-      } else {
-        alert("Failed to update watchlist.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error saving watchlist.");
-    } finally {
-      setSavingWatchlist(false);
-    }
-  };
-
-  const handleAddSymbol = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = newSymbol.trim().toUpperCase();
-    if (clean && !watchlist.includes(clean)) {
-      setWatchlist(prev => [...prev, clean]);
-    }
-    setNewSymbol("");
-  };
-
-  const handleRemoveSymbol = (sym: string) => {
-    setWatchlist(prev => prev.filter(s => s !== sym));
-  };
 
   // Radar rotater & target ticker updater
   useEffect(() => {
@@ -252,15 +207,15 @@ export default function ClientDashboard() {
       </GlassCard>
 
       <div className="space-y-6">
-        {MOCK_SIGNALS.map((signal) => (
+        {(signals.length > 0 ? signals : MOCK_SIGNALS).map((signal) => (
           <GlassCard key={signal.id} className="relative group overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-6">
               <div className="flex items-center gap-6">
                 <div className={cn(
                   "w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-lg",
-                  signal.type === "BUY" ? "bg-success/20 text-success" : "bg-danger/20 text-danger"
+                  (signal.type === "BUY" || signal.status === "BUY") ? "bg-success/20 text-success" : "bg-danger/20 text-danger"
                 )}>
-                  {signal.type === "BUY" ? "B" : "S"}
+                  {(signal.type === "BUY" || signal.status === "BUY") ? "B" : "S"}
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white tracking-tight">{signal.stock}</h3>
@@ -271,23 +226,25 @@ export default function ClientDashboard() {
               <div className="grid grid-cols-3 gap-8 flex-1 max-w-xl">
                 <div>
                   <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Entry Price</p>
-                  <p className="text-lg font-mono font-bold text-white">₹{signal.entry.toFixed(2)}</p>
+                  <p className="text-lg font-mono font-bold text-white">₹{(signal.entry || signal.high || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Stop Loss</p>
-                  <p className="text-lg font-mono font-bold text-danger/80">₹{signal.sl.toFixed(2)}</p>
+                  <p className="text-lg font-mono font-bold text-danger/80">₹{(signal.sl || signal.low || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="text-text-secondary text-[10px] uppercase font-bold tracking-widest mb-1">Target (+1%)</p>
-                  <p className="text-lg font-mono font-bold text-success">₹{signal.target.toFixed(2)}</p>
+                  <p className="text-lg font-mono font-bold text-success">
+                    ₹{(signal.target || (signal.high ? signal.high * 1.01 : 0) || 0).toFixed(2)}
+                  </p>
                 </div>
               </div>
 
               <div className="text-right">
-                <Badge variant={signal.status === "Active" ? "info" : "success"} className="px-4 py-1 text-sm mb-2">
+                <Badge variant={signal.status === "Active" || signal.status === "DETECTED" ? "info" : "success"} className="px-4 py-1 text-sm mb-2">
                   {signal.status}
                 </Badge>
-                <p className="text-[10px] text-text-secondary italic">Updated 2 mins ago</p>
+                <p className="text-[10px] text-text-secondary italic">Updated live</p>
               </div>
             </div>
           </GlassCard>
