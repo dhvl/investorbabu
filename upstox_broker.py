@@ -42,13 +42,14 @@ def get_smc_tokens():
 
 def get_smc_headers():
     tokens = get_smc_tokens()
+    smc_api_key = os.getenv("SMC_API_KEY", "e1ac02a1e79536156bd1")
     return {
         "Content-Type": "application/json",
         "Accept": "application/json",
         "request_token": tokens.get("request_token", ""),
         "x-Platform": "api",
         "X-Access-Token": tokens.get("access_token", ""),
-        "x-Api-key": UPSTOX_API_KEY,
+        "x-Api-key": smc_api_key,
         "X-Client-Id": "HVI0518",
         "x-algo-id": "99999"  # Segments-wise Algo ID: 99999 for NSE
     }

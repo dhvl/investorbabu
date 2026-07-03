@@ -375,6 +375,14 @@ def main():
     send_trade_message(f"🚀 <b>BLUECANDLE PROGRAMMATIC LIVE</b>\n\nScanner process started 24/7.\nTime: {datetime.now().strftime('%I:%M %p')} IST")
 
     start_tracker()  # Start order monitoring
+    
+    # Generate daily SMC session token on startup
+    try:
+        from smc_session_manager import refresh_smc_session
+        refresh_smc_session()
+    except Exception as e:
+        logger.error(f"Failed to generate SMC session token on startup: {e}")
+        
     reset_daily_state()
 
     last_reset_date = datetime.now().date()
@@ -389,6 +397,14 @@ def main():
                now.minute >= MARKET_START_MINUTE:
                 logger.info("New trading day — resetting daily state")
                 reset_daily_state()
+                
+                # Regenerate daily SMC session token
+                try:
+                    from smc_session_manager import refresh_smc_session
+                    refresh_smc_session()
+                except Exception as e:
+                    logger.error(f"Failed to regenerate daily SMC session token: {e}")
+                    
                 last_reset_date = now.date()
 
             # Scan all active asset classes
