@@ -63,11 +63,11 @@ EXCHANGE          = "NSE"  # SMC segment for NSE Equities
 
 # Static mapping for the 5 monitored instruments to standard exchange tokens
 SMC_TOKENS = {
-    "TATASTEEL": "3045",
+    "TATASTEEL": "3499",
     "POLYCAB": "13528",
     "HAVELLS": "9819",
     "DLF": "14732",
-    "ADANIENSOL": "15111",
+    "ADANIENSOL": "10217",
     "IDEA": "14366"
 }
 
