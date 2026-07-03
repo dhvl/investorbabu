@@ -37,7 +37,6 @@ export default function SimLearningsPage() {
   const uniqueDates = useMemo(() => {
     if (!data || !data.orders) return [];
     const dates = Array.from(new Set(data.orders.map((o: any) => o.date))) as string[];
-    // Helper to sort dates like "05 Jun 2026", "03 Jul 2026"
     return dates.sort((a, b) => {
       try {
         return new Date(b).getTime() - new Date(a).getTime();
@@ -89,15 +88,16 @@ export default function SimLearningsPage() {
   const symbolPerformance = useMemo(() => {
     if (!data || !data.activeSymbols) return [];
     
-    const symbolPerformanceMap: Record<string, { pnl: number; wins: number; total: number }> = {};
+    const symbolPerformanceMap: Record<string, { pnl: number; wins: number; total: number; capital: number }> = {};
     data.activeSymbols.forEach((sym: string) => {
-      symbolPerformanceMap[sym] = { pnl: 0, wins: 0, total: 0 };
+      symbolPerformanceMap[sym] = { pnl: 0, wins: 0, total: 0, capital: 0 };
     });
 
     filteredOrders.forEach((o: any) => {
       const sym = o.symbol;
       if (symbolPerformanceMap[sym]) {
         symbolPerformanceMap[sym].pnl += (o.pnl || 0);
+        symbolPerformanceMap[sym].capital += (o.capital || 0);
         symbolPerformanceMap[sym].total += 1;
         if ((o.pnl || 0) > 0) {
           symbolPerformanceMap[sym].wins += 1;
@@ -107,9 +107,11 @@ export default function SimLearningsPage() {
 
     return Object.keys(symbolPerformanceMap).map(sym => {
       const stats = symbolPerformanceMap[sym];
+      const pnlPct = stats.capital > 0 ? (stats.pnl / stats.capital) * 100 : 0;
       return {
         symbol: sym,
         pnl: parseFloat(stats.pnl.toFixed(2)),
+        pnlPct: parseFloat(pnlPct.toFixed(2)),
         winRate: stats.total > 0 ? ((stats.wins / stats.total) * 100).toFixed(1) + "%" : "0.0%",
         tradesCount: stats.total
       };
@@ -227,10 +229,13 @@ export default function SimLearningsPage() {
                 </div>
                 <div className="space-y-1">
                   <p className={cn(
-                    "text-lg font-bold font-mono",
+                    "text-base font-bold font-mono flex items-baseline gap-1.5 flex-wrap",
                     item.pnl >= 0 ? "text-emerald-400" : "text-red-400"
                   )}>
-                    {item.pnl >= 0 ? "+" : ""}₹{item.pnl.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <span>{item.pnl >= 0 ? "+" : ""}₹{item.pnl.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <span className="text-[10px] opacity-90 font-sans font-semibold">
+                      ({item.pnl >= 0 ? "+" : ""}{item.pnlPct.toFixed(2)}%)
+                    </span>
                   </p>
                   <p className="text-[10px] text-text-secondary">
                     {item.tradesCount} {item.tradesCount === 1 ? "trade" : "trades"} logged
@@ -379,10 +384,13 @@ export default function SimLearningsPage() {
                     <div>
                       <span className="text-slate-500 block text-[9px] uppercase tracking-wider mb-0.5">P&L Status</span>
                       <span className={cn(
-                        "font-bold",
+                        "font-bold flex items-baseline gap-1 flex-wrap",
                         t.pnl > 0 ? "text-emerald-400" : t.pnl < 0 ? "text-red-400" : "text-slate-400"
                       )}>
-                        {t.pnl > 0 ? "+" : ""}₹{t.pnl.toFixed(2)}
+                        <span>{t.pnl > 0 ? "+" : ""}₹{t.pnl.toFixed(2)}</span>
+                        <span className="text-[9px] opacity-80 font-sans font-semibold">
+                          ({t.pnl > 0 ? "+" : ""}{t.pnlPct.toFixed(2)}%)
+                        </span>
                       </span>
                     </div>
                     <div>

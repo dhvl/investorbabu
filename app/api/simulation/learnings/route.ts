@@ -73,6 +73,10 @@ export async function GET() {
       const exit = o.exit_price || o.ltp || 0;
       const pnl = o.pnl || 0;
       const side = o.active_leg || (pnl >= 0 ? "BUY" : "SELL");
+      
+      const qty = o.buy_qty || o.sell_qty || o.quantity || 1;
+      const capital = entry * qty;
+      const pnlPct = capital > 0 ? (pnl / capital) * 100 : 0;
 
       let explanation = "";
       if (o.status === "COMPLETE" || o.status === "TARGET HIT" || o.status === "SL HIT") {
@@ -94,7 +98,10 @@ export async function GET() {
         side,
         entry,
         exit,
+        qty,
+        capital,
         pnl: parseFloat(pnl.toFixed(2)),
+        pnlPct: parseFloat(pnlPct.toFixed(2)),
         time: o.time || "Active",
         status: o.status,
         explanation
