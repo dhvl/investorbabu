@@ -97,18 +97,20 @@ def save_trade_log(trade: dict):
 
 
 @app.route("/upstox/postback", methods=["POST"])
+@app.route("/smc/postback", methods=["POST"])
 def upstox_postback():
-    """Receive order update from Upstox."""
+    """Receive order update from Upstox/SMC."""
     try:
         data = request.get_json(force=True) or request.form.to_dict()
         logger.info(f"Postback received: {json.dumps(data)}")
 
-        order_id   = str(data.get("order_id", ""))
-        status     = str(data.get("status", "")).upper()
-        symbol     = data.get("trading_symbol") or data.get("tradingsymbol") or ""
-        filled_qty = data.get("filled_quantity") or data.get("filled_qty", 0)
-        avg_price  = float(data.get("average_price", 0))
-        tx_type    = data.get("transaction_type", "")
+        # Normalize fields for either Upstox or SMC/XTS:
+        order_id   = str(data.get("order_id") or data.get("orderId") or data.get("exch_order_id") or "")
+        status     = str(data.get("status") or data.get("orderStatus") or data.get("order_status") or "").upper()
+        symbol     = data.get("trading_symbol") or data.get("tradingsymbol") or data.get("symbol") or ""
+        filled_qty = data.get("filled_quantity") or data.get("filled_qty") or data.get("quantity") or 0
+        avg_price  = float(data.get("average_price") or data.get("avg_price") or data.get("trade_average_price") or data.get("price") or 0)
+        tx_type    = str(data.get("transaction_type") or data.get("action") or data.get("transactionType") or "").upper()
 
         if not order_id or not status:
             return jsonify({"status": "ignored"}), 200
@@ -895,6 +897,86 @@ def get_system_logs():
         return jsonify([{"timestamp": "", "level": "ERROR", "message": f"Error reading log file: {str(e)}"}]), 500
 
 
+@app.route("/api/broker/funds", methods=["GET"])
+def get_broker_funds():
+    import requests
+    token_path = "/home/investo/bluecandle/upstox_token.txt"
+    token = ""
+    if os.path.exists(token_path):
+        try:
+            with open(token_path, "r") as f:
+                token = f.read().strip()
+        except Exception:
+            pass
+
+    # Read today's simulated trades to calculate dynamic daily P&L
+    today_pnl = 0.0
+    try:
+        orders_path = "/home/investo/bluecandle/simulated_orders.json"
+        if os.path.exists(orders_path):
+            with open(orders_path, "r") as f:
+                orders = json.load(f)
+                import datetime
+                today_str = datetime.datetime.now().strftime("%d %b %Y")
+                # Remove leading zero from day if present in order date to match e.g. "02 Jul 2026" vs "2 Jul 2026"
+                if today_str.startswith("0"):
+                    today_str = today_str[1:]
+                today_pnl = sum(float(o.get("pnl", 0.0)) for o in orders if o.get("date") == today_str)
+    except Exception:
+        pass
+
+    if not token:
+        return jsonify({
+            "status": "success",
+            "source": "simulated_empty_token",
+            "data": {
+                "cash": "100000.00",
+                "available_limit": "100000.00",
+                "utilized_limit": "0.00",
+                "leverage": "5.0x",
+                "realised_profit": f"{today_pnl:.2f}"
+            }
+        })
+
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        res = requests.get("https://openapi.smctradeonline.com/funds", headers=headers, timeout=5)
+        if res.status_code == 200:
+            res_data = res.json()
+            if res_data.get("status") == "success":
+                data = res_data.get("data", {})
+                return jsonify({
+                    "status": "success",
+                    "source": "smc_api",
+                    "data": {
+                        "cash": data.get("cash", "0.00"),
+                        "available_limit": data.get("available_limit", "0.00"),
+                        "utilized_limit": data.get("utilized_limit", "0.00"),
+                        "leverage": "5.0x",
+                        "realised_profit": f"{today_pnl:.2f}"
+                    }
+                })
+    except Exception:
+        pass
+
+    return jsonify({
+        "status": "success",
+        "source": "fallback_estimated",
+        "data": {
+            "cash": "100000.00",
+            "available_limit": f"{100000.00 + today_pnl:.2f}",
+            "utilized_limit": "0.00",
+            "leverage": "5.0x",
+            "realised_profit": f"{today_pnl:.2f}"
+        }
+    })
+
+
 @app.route("/api/vps-data", methods=["GET"])
 def get_vps_file_data():
     filename = request.args.get("file")
@@ -1040,56 +1122,149 @@ def save_instrument_config_vps():
 
 
 @app.route("/upstox/login")
+@app.route("/smc/login")
 def upstox_login():
     client_id = os.getenv("UPSTOX_API_KEY")
-    redirect_uri = "https://api.investorbabu.com/upstox/callback"
-    auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}"
+    auth_url = f"https://acetrade.smctradeonline.com/login?api_key={client_id}"
     from flask import redirect
     return redirect(auth_url)
 
 @app.route("/upstox/callback")
+@app.route("/smc/callback")
 def upstox_callback():
-    code = request.args.get("code")
-    if not code:
-        return "Error: Missing code parameter", 400
+    # In SMC, the redirected URL has query parameters auth_token and feed_token, or token
+    auth_token = request.args.get("auth_token") or request.args.get("code") or request.args.get("token")
+    if not auth_token:
+        return "Error: Missing auth_token or code or token parameter", 400
     
+    import hmac
+    import hashlib
     import requests
-    client_id = os.getenv("UPSTOX_API_KEY")
-    client_secret = os.getenv("UPSTOX_API_SECRET")
-    redirect_uri = "https://api.investorbabu.com/upstox/callback"
+    
+    api_key = os.getenv("UPSTOX_API_KEY")
+    api_secret = os.getenv("UPSTOX_API_SECRET")
+    
+    key = api_key + auth_token
+    signature = hmac.new(key.encode('utf-8'), api_secret.encode('utf-8'), hashlib.sha256).hexdigest()
     
     payload = {
-        "code": code,
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-        "grant_type": "authorization_code"
+        "api_key": api_key,
+        "signature": signature,
+        "req_token": auth_token
     }
     headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/json",
+        "Accept": "application/json"
     }
     
     try:
-        res = requests.post("https://api.upstox.com/v2/login/authorization/token", data=payload, headers=headers, timeout=15)
+        res = requests.post("https://openapi.smctradeonline.com/auth/token", json=payload, headers=headers, timeout=15)
         if res.status_code == 200:
             res_data = res.json()
-            access_token = res_data.get("access_token")
-            if access_token:
-                token_path = "/home/investo/bluecandle/upstox_token.txt"
-                with open(token_path, "w") as f:
-                    f.write(access_token)
-                os.environ["UPSTOX_ACCESS_TOKEN"] = access_token
-                
-                # Send telegram notification
-                try:
-                    send_message("🔑 <b>Upstox Access Token Renewed Successfully!</b>\nThe new access token is active and has been saved dynamically.")
-                except Exception as te:
-                    logger.error(f"Telegram notify error: {te}")
-                
-                return "<h1>Success!</h1><p>Upstox access token has been successfully renewed and saved on the server. You can close this tab now.</p>"
+            if res_data.get("status") == "success":
+                access_token = res_data.get("data", {}).get("access_token")
+                if access_token:
+                    token_path = "/home/investo/bluecandle/upstox_token.txt"
+                    with open(token_path, "w") as f:
+                        f.write(access_token)
+                    os.environ["UPSTOX_ACCESS_TOKEN"] = access_token
+                    
+                    # Send telegram notification
+                    try:
+                        send_message("🔑 <b>SMC Access Token Renewed Successfully!</b>\nThe new access token is active and has been saved dynamically.")
+                    except Exception as te:
+                        logger.error(f"Telegram notify error: {te}")
+                    
+                    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMC Authorization Success</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: radial-gradient(circle at top right, #1a102f, #0c0817);
+            color: #ffffff;
+            font-family: 'Outfit', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 3rem;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            max-width: 450px;
+            width: 90%;
+            transform: translateY(20px);
+            opacity: 0;
+            animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes fadeIn {
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s forwards;
+            opacity: 0;
+            transform: scale(0.5);
+        }
+        @keyframes scaleIn {
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 0 0 1rem 0;
+            background: linear-gradient(135deg, #00f2fe, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        p {
+            color: #a0aec0;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin: 0 0 2rem 0;
+        }
+        .close-hint {
+            display: inline-block;
+            font-size: 0.85rem;
+            color: #718096;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 1.5rem;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🔑</div>
+        <h1>Success!</h1>
+        <p>SMC access token has been successfully renewed and saved on the server. You are ready for live trading.</p>
+        <span class="close-hint">You can safely close this tab now.</span>
+    </div>
+</body>
+</html>"""
+                else:
+                    return f"Error: Access token not found in response: {res.text}", 400
             else:
-                return f"Error: Token not found in response: {res.text}", 400
+                return f"Error: Token exchange status failed: {res.text}", 400
         else:
             return f"Error exchanging code for token: {res.text} (HTTP {res.status_code})", 400
     except Exception as e:
