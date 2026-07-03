@@ -945,7 +945,8 @@ def get_broker_funds():
     }
 
     try:
-        res = requests.get("https://openapi.smctradeonline.com/funds", headers=headers, timeout=5)
+        from upstox_broker import get_smc_headers
+        res = requests.get("https://openapi.smctradeonline.com/funds", headers=get_smc_headers(), timeout=5)
         if res.status_code == 200:
             res_data = res.json()
             if res_data.get("status") == "success":
@@ -1167,6 +1168,16 @@ def upstox_callback():
                     token_path = "/home/investo/bluecandle/upstox_token.txt"
                     with open(token_path, "w") as f:
                         f.write(access_token)
+                    try:
+                        import json
+                        tokens_path = "/home/investo/bluecandle/smc_tokens.json"
+                        with open(tokens_path, "w") as f:
+                            json.dump({
+                                "request_token": auth_token,
+                                "access_token": access_token
+                            }, f)
+                    except Exception as e_json:
+                        logger.error(f"Failed to write smc_tokens.json: {e_json}")
                     os.environ["UPSTOX_ACCESS_TOKEN"] = access_token
                     
                     # Send telegram notification
