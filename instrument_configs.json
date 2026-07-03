@@ -1,0 +1,123 @@
+{
+  "TATASTEEL": {
+    "currency": "INR",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 0.0
+    },
+    "live": {
+      "capital": 20000.0,
+      "lot_size": 0.0
+    }
+  },
+  "POLYCAB": {
+    "currency": "INR",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 0.0
+    },
+    "live": {
+      "capital": 50000.0,
+      "lot_size": 0.0
+    }
+  },
+  "HAVELLS": {
+    "currency": "INR",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 0.0
+    },
+    "live": {
+      "capital": 20000.0,
+      "lot_size": 0.0
+    }
+  },
+  "DLF": {
+    "currency": "INR",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 0.0
+    },
+    "live": {
+      "capital": 20000.0,
+      "lot_size": 0.0
+    }
+  },
+  "ADANIENSOL": {
+    "currency": "INR",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 0.0
+    },
+    "live": {
+      "capital": 20000.0,
+      "lot_size": 0.0
+    }
+  },
+  "BTCUSD": {
+    "currency": "USD",
+    "sim": {
+      "capital": 0.0,
+      "lot_size": 0.1
+    },
+    "live": {
+      "capital": 0.0,
+      "lot_size": 0.1
+    }
+  },
+  "XAGUSD": {
+    "currency": "USD",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 1.0
+    },
+    "live": {
+      "capital": 10000.0,
+      "lot_size": 1.0
+    }
+  },
+  "XAUUSD": {
+    "currency": "USD",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 1.0
+    },
+    "live": {
+      "capital": 10000.0,
+      "lot_size": 1.0
+    }
+  },
+  "OILUSD": {
+    "currency": "USD",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 1.0
+    },
+    "live": {
+      "capital": 10000.0,
+      "lot_size": 1.0
+    }
+  },
+  "CUCUSD": {
+    "currency": "USD",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 1.0
+    },
+    "live": {
+      "capital": 10000.0,
+      "lot_size": 1.0
+    }
+  },
+  "IDEA": {
+    "currency": "INR",
+    "sim": {
+      "capital": 10000.0,
+      "lot_size": 0.0
+    },
+    "live": {
+      "capital": 20000.0,
+      "lot_size": 0.0
+    }
+  }
+}
