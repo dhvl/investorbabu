@@ -3,6 +3,7 @@ import time
 import logging
 import requests
 import pandas as pd
+import os
 from datetime import datetime, timezone, timedelta
 import pytz
 
