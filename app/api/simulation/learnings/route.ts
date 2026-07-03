@@ -8,84 +8,6 @@ export async function GET() {
     const orders = await getSimulatedOrders();
     const activeInstruments = await getInstruments();
     const activeSymbols = Object.keys(activeInstruments).filter(sym => !["BTCUSD", "XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(sym));
-    
-    // Perform simple analytics on simulated orders
-    const totalTrades = orders.length;
-    const wins = orders.filter((o: any) => (o.pnl || 0) > 0).length;
-    const losses = orders.filter((o: any) => (o.pnl || 0) < 0).length;
-    const winRate = totalPercentage(wins, totalTrades);
-    
-    let totalProfit = 0;
-    let totalLoss = 0;
-    orders.forEach((o: any) => {
-      const pnl = o.pnl || 0;
-      if (pnl > 0) totalProfit += pnl;
-      else totalLoss += Math.abs(pnl);
-    });
-    
-    const profitFactor = totalLoss > 0 ? (totalProfit / totalLoss).toFixed(2) : "N/A";
-
-    // Dynamic Symbol Performance Breakdown
-    const symbolPerformanceMap: Record<string, { pnl: number; wins: number; total: number }> = {};
-    activeSymbols.forEach(sym => {
-      symbolPerformanceMap[sym] = { pnl: 0, wins: 0, total: 0 };
-    });
-
-    orders.forEach((o: any) => {
-      const sym = o.symbol;
-      if (symbolPerformanceMap[sym]) {
-        symbolPerformanceMap[sym].pnl += (o.pnl || 0);
-        symbolPerformanceMap[sym].total += 1;
-        if ((o.pnl || 0) > 0) {
-          symbolPerformanceMap[sym].wins += 1;
-        }
-      }
-    });
-
-    const symbolPerformance = Object.keys(symbolPerformanceMap).map(sym => {
-      const stats = symbolPerformanceMap[sym];
-      return {
-        symbol: sym,
-        pnl: parseFloat(stats.pnl.toFixed(2)),
-        winRate: stats.total > 0 ? (stats.wins / stats.total * 100).toFixed(1) + "%" : "0.0%",
-        tradesCount: stats.total
-      };
-    });
-
-    // Detailed Trades Analysis Log
-    const detailedTrades = orders.map((o: any, idx: number) => {
-      const entry = o.buy_entry || o.sell_entry || o.entry_price || 0;
-      const target = o.buy_target || o.sell_target || 0;
-      const sl = o.buy_stop_loss || o.sell_stop_loss || 0;
-      const exit = o.exit_price || o.ltp || 0;
-      const pnl = o.pnl || 0;
-      const side = o.active_leg || (pnl >= 0 ? "BUY" : "SELL");
-
-      let explanation = "";
-      if (o.status === "COMPLETE") {
-        if (pnl > 0) {
-          explanation = `Breakout trigger breached at Rs ${entry.toFixed(2)}. Trailed positions successfully touched target exit of Rs ${exit.toFixed(2)}, capturing +1.0% expansion.`;
-        } else {
-          explanation = `Entry triggered at Rs ${entry.toFixed(2)}. Price failed to sustain momentum and retraced past the structural defense level (Stop-Loss) at Rs ${exit.toFixed(2)}.`;
-        }
-      } else if (o.status === "TRAILING_SL_HIT") {
-        explanation = `Breakout triggered at Rs ${entry.toFixed(2)}. Price achieved favorable excursion and trailed stops successfully secured profits/minimized loss at Rs ${exit.toFixed(2)}.`;
-      } else {
-        explanation = `Pending breakout stop order active. Buy boundary: Rs ${entry.toFixed(2)} | Sell boundary: Rs ${sl.toFixed(2)}.`;
-      }
-
-      return {
-        id: o.order_id || `sim-detail-${idx}`,
-        symbol: o.symbol,
-        side,
-        entry,
-        exit,
-        pnl,
-        time: o.time || "Active",
-        status: o.status,
-        explanation
-      };
-    });
 
     // Dynamic Excursion Recommendations Feed matching only active symbols
     const masterRecommendations = {
@@ -143,28 +65,50 @@ export async function GET() {
       { parameter: "Cooldown Window", active: "5 minutes", aiSuggested: "15 minutes (Open Range)", status: "Optimize Suggested" },
     ];
 
+    // Build the dynamic explanations for the raw orders
+    const processedOrders = orders.map((o: any, idx: number) => {
+      const entry = o.buy_entry || o.sell_entry || o.entry_price || 0;
+      const target = o.buy_target || o.sell_target || 0;
+      const sl = o.buy_stop_loss || o.sell_stop_loss || 0;
+      const exit = o.exit_price || o.ltp || 0;
+      const pnl = o.pnl || 0;
+      const side = o.active_leg || (pnl >= 0 ? "BUY" : "SELL");
+
+      let explanation = "";
+      if (o.status === "COMPLETE" || o.status === "TARGET HIT" || o.status === "SL HIT") {
+        if (pnl > 0) {
+          explanation = `Breakout trigger breached at Rs ${entry.toFixed(2)}. Trailed positions successfully touched target exit of Rs ${exit.toFixed(2)}, capturing +1.0% expansion.`;
+        } else {
+          explanation = `Entry triggered at Rs ${entry.toFixed(2)}. Price failed to sustain momentum and retraced past the structural defense level (Stop-Loss) at Rs ${exit.toFixed(2)}.`;
+        }
+      } else if (o.status === "TRAILING_SL_HIT") {
+        explanation = `Breakout triggered at Rs ${entry.toFixed(2)}. Price achieved favorable excursion and trailed stops successfully secured profits/minimized loss at Rs ${exit.toFixed(2)}.`;
+      } else {
+        explanation = `Pending breakout stop order active. Buy boundary: Rs ${entry.toFixed(2)} | Sell boundary: Rs ${sl.toFixed(2)}.`;
+      }
+
+      return {
+        id: o.order_id || `sim-detail-${idx}`,
+        symbol: o.symbol,
+        date: o.date || "Unknown",
+        side,
+        entry,
+        exit,
+        pnl: parseFloat(pnl.toFixed(2)),
+        time: o.time || "Active",
+        status: o.status,
+        explanation
+      };
+    });
+
     return NextResponse.json({
       status: "success",
-      metrics: {
-        totalTrades,
-        wins,
-        losses,
-        winRate: winRate.toFixed(1) + "%",
-        profitFactor,
-        totalPnL: parseFloat((totalProfit - totalLoss).toFixed(2)),
-      },
-      symbolPerformance,
-      detailedTrades,
+      orders: processedOrders,
+      activeSymbols,
       recommendations,
-      modelParams,
-      lastUpdated: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
+      modelParams
     });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
-}
-
-function totalPercentage(part: number, total: number): number {
-  if (total === 0) return 0;
-  return (part / total) * 100;
 }
