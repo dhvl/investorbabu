@@ -56,7 +56,13 @@ export default function ClientDashboard() {
         const res = await fetch("/api/trades");
         if (res.ok) {
           const data = await res.json();
-          setTrades(Array.isArray(data) ? data : []);
+          const rawTrades = Array.isArray(data) ? data : [];
+          const filteredTrades = rawTrades.filter((t: any) => 
+            t.transaction_type === "BUY" || 
+            t.transaction_type === "SELL" || 
+            t.transaction_type === "TRADED"
+          );
+          setTrades(filteredTrades);
         }
       } catch (err) {
         console.error("Failed to load trades:", err);

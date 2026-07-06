@@ -90,13 +90,20 @@ export async function getTradesForDate(dateStr: string) {
           id: t.order_id || `t-${dateStr}-${i}`,
           date: `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`,
           stock: t.symbol,
+          symbol: t.symbol,
           side: t.transaction_type,
+          transaction_type: t.transaction_type,
           entry: t.entry_price || 0,
+          entry_price: t.entry_price || 0,
           exit: t.exit_price || 0,
+          exit_price: t.exit_price || 0,
           qty: t.quantity || 0,
+          quantity: t.quantity || 0,
           capital: Math.round(capital),
           pnl: t.pnl || 0,
           return_pct: parseFloat(return_pct.toFixed(2)),
+          status: t.status || "COMPLETE",
+          time: t.time || "09:15 AM IST",
           verified: false
         };
       });
@@ -159,10 +166,18 @@ export async function getAllTrades() {
           id: `kite-${ks.symbol}-${dateStr}`,
           date: `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`,
           stock: ks.symbol,
+          symbol: ks.symbol,
           side: "TRADED", // Aggregate
+          transaction_type: "TRADED",
           entry: ks.avg_price || matchingLog?.entry || 0,
+          entry_price: ks.avg_price || matchingLog?.entry || 0,
           exit: ks.last_price || matchingLog?.exit || 0,
+          exit_price: ks.last_price || matchingLog?.exit || 0,
           qty: Math.max(
+            ks.trades.reduce((acc: number, t: any) => acc + (t.type === 'BUY' ? t.qty : 0), 0),
+            ks.trades.reduce((acc: number, t: any) => acc + (t.type === 'SELL' ? t.qty : 0), 0)
+          ),
+          quantity: Math.max(
             ks.trades.reduce((acc: number, t: any) => acc + (t.type === 'BUY' ? t.qty : 0), 0),
             ks.trades.reduce((acc: number, t: any) => acc + (t.type === 'SELL' ? t.qty : 0), 0)
           ),
@@ -171,6 +186,8 @@ export async function getAllTrades() {
           return_pct: Math.max(ks.buy_val, ks.sell_val) > 0 
             ? parseFloat(((ks.pnl / Math.max(ks.buy_val, ks.sell_val)) * 100).toFixed(2)) 
             : 0,
+          status: "COMPLETE",
+          time: "03:30 PM IST",
           verified: true
         });
       });
@@ -191,13 +208,20 @@ export async function getAllTrades() {
         id: `nt-${symbol}-${todayDateStr}`,
         date: `${todayDateStr.slice(0, 4)}-${todayDateStr.slice(4, 6)}-${todayDateStr.slice(6, 8)}`,
         stock: symbol,
+        symbol: symbol,
         side: "ZERO_TRADES",
+        transaction_type: "ZERO_TRADES",
         entry: 0,
+        entry_price: 0,
         exit: 0,
+        exit_price: 0,
         qty: 0,
+        quantity: 0,
         capital: 0,
         pnl: 0,
         return_pct: 0,
+        time: "09:15 AM IST",
+        status: "ZERO_TRADES",
         verified: false,
         reason: reason
       });
