@@ -32,16 +32,18 @@ export default function ClientHistoryPage() {
     fetchTrades();
   }, []);
 
-  // Extract and sort unique dates descending
+  // Extract and sort unique dates descending (filter to actual live launch since July 1, 2026)
   const uniqueDates = useMemo(() => {
     const dates = Array.from(new Set(trades.map((o: any) => o.date))) as string[];
-    return dates.sort((a, b) => {
-      try {
-        return new Date(b).getTime() - new Date(a).getTime();
-      } catch {
-        return b.localeCompare(a);
-      }
-    });
+    return dates
+      .filter(d => d >= "2026-07-01")
+      .sort((a, b) => {
+        try {
+          return new Date(b).getTime() - new Date(a).getTime();
+        } catch {
+          return b.localeCompare(a);
+        }
+      });
   }, [trades]);
 
   // Set default selected date once dates are loaded
