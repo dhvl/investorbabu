@@ -9,15 +9,47 @@ export default function ClientLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
+    setError("");
+    try {
+      const res = await fetch("/api/clients");
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.clients) {
+          const clients = data.clients;
+          let matchedClient: any = null;
+          let matchedChatId: string = "";
+          for (const chatId in clients) {
+            const c = clients[chatId];
+            if (c.email && c.email.toLowerCase() === email.toLowerCase() && c.password === password) {
+              matchedClient = c;
+              matchedChatId = chatId;
+              break;
+            }
+          }
+          if (matchedClient) {
+            localStorage.setItem("client_session", JSON.stringify({
+              name: matchedClient.name,
+              email: matchedClient.email,
+              chat_id: matchedChatId,
+              type: matchedClient.type || "live"
+            }));
+            window.location.href = "/dashboard";
+            return;
+          }
+        }
+      }
+      setError("Invalid email address or password.");
+    } catch (err) {
+      console.error(err);
+      setError("An error occurred during sign in. Please try again.");
+    } finally {
       setIsLoading(false);
-      // Redirect to onboarding page for demonstration
-      window.location.href = "/onboarding";
-    }, 1500);
+    }
   };
 
   return (
@@ -72,6 +104,12 @@ export default function ClientLoginPage() {
                 />
               </div>
             </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-500 text-xs text-center font-medium font-sans">
+                {error}
+              </div>
+            )}
 
             <button 
               type="submit"

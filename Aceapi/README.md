@@ -1,0 +1,143 @@
+
+# AceApi
+    "Aceapi is a python library that provides a set of tools and functionalities for interacting with the Stoxkart trading platform."
+
+# Installation
+Use the package manager [pip](https://pip.pypa.io/en/stable/) to install AceApi
+
+    pip install aceApi
+    pip install websocket
+
+# Usage
+    # package import statement 
+    import time
+    import pyotp
+    import pandas as pd
+    from aceapi.aceapi import AceApi
+    import logging
+    logging.getLogger("aceapi").setLevel(logging.INFO)
+
+
+    """Initialize API"""
+    api_key = 'Your Api-Key'
+    user_id = 'Your demat account/user id'
+    password = 'Your demat account password'
+    api_secret = 'Your Secret Key'
+    totp_secret = 'Your TOTP value'
+
+    api = AceApi(api_key, user_id, password, api_secret)
+
+    """Generate TOTP and validate 2FA"""
+    totp = pyotp.TOTP(totp_secret)
+    api.validate_2fa_with_totp(totp.now())
+    api.generate_session()
+    print("Access token:", c1.access_token)
+
+    """Place Normal Order"""
+    order_params = {
+            "action": "BUY",
+            "exchange": "NSE",
+            "token": "11536",
+            "order_type": "LIMIT",
+            "product_type": "DELIVERY",
+            "quantity": "1",
+            "disclose_quantity": "0",
+            "price": "3150",
+            "trigger_price": "0",
+            "stop_loss_price": "0",
+            "trailing_stop_loss": "0",
+            "validity": "DAY",
+            "tag": ""
+        }
+    order = api.placeOrder(order_params)
+    if order:
+        print("Order placed successfully. Order ID: ", order)
+    else:
+        print("Failed to place order")
+
+    """For AMO Order"""
+    orderParams ={
+        "action": "BUY",
+        "exchange": "NSE",
+        "token": "11536",
+        "order_type": "STOPLOSS_LIMIT",
+        "product_type": "DELIVERY",
+        "quantity": "5",
+        "disclose_quantity": "0",
+        "price": "3650",
+        "trigger_price": "3600",
+        "stop_loss_price": "0",
+        "trailing_stop_loss": "0",
+        "validity": "DAY",
+        "tag": ""
+    }
+    amoOrder= api.placeAmoOrder(orderParams)
+    if amoOrder:
+        print("Amo order placed succesfully :",amoOrder)
+    else:
+        print("Failed to placed order")
+
+    """ Place BO order """
+    orderparams = {
+        "action": "BUY",
+        "exchange": "NFO",
+        "token": "48757",
+        "order_type": "LIMIT",
+        "product_type": "BO",
+        "quantity": "50",
+        "disclose_quantity": "0",
+        "price": "17600",
+        "stop_loss_price": "17200",
+        "trigger_price": "17490",
+        "target_price": "18000",
+        "trailing_stop_loss": "0",
+        "validity": "DAY",
+        "validity_date": "",
+        "tag": ""
+    }
+    boReasponse = api.placeBoOrder(orderparams)
+    print("BO order Response : ", boReasponse)
+
+    """Get Position Conversion"""
+    order_params = {
+        "exchange": "NSE",
+        "token": "11536",
+        "quantity": "1",
+        "action": "BUY",
+        "product_type": "DELIVERY",
+        "new_product_type": "INTRADAY"
+    }
+    positionConversionResponse = api.positionConversion(order_params)
+    print("Position Conversion Response:", positionConversionResponse.json())
+    
+
+    """Script Master Exchange CSV"""
+    exchange = 'MCX'
+    scrip_master_csv = api.getScripMasterExchangeCsv(exchange).content
+    if scrip_master_csv:
+        from io import StringIO
+        df= pd.read_csv(StringIO(scrip_master_csv.decode('utf-8')))
+        print("Scrip Master Exchange CSV fetched successfully:")
+    else:
+        print("Failed to fetch Scrip Master Exchange CSV.")
+
+    """LTP Quotes"""
+    orderparams = {
+      "exchange": "NSE",
+      "tokens": ["3045"]
+    }
+    ltpResponse = api.ltpQuotes(orderparams)
+    print("LTP Quotes : ",ltpResponse)
+
+    """ <-------- Websocket -------------> """
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+# Added Updated SDK files

@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function ClientLayout({
   children,
@@ -17,6 +18,18 @@ export default function ClientLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [session, setSession] = useState<{ name: string; type: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("client_session");
+      if (stored) {
+        setSession(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   const navItems = [
     { id: "dashboard", label: "Signal Feed", icon: Bell, href: "/dashboard" },
@@ -58,10 +71,16 @@ export default function ClientLayout({
         </nav>
 
         <div className="mt-auto">
-          <Link href="/login" className="flex items-center gap-3 px-3 py-2 rounded-xl text-red-500 hover:bg-red-500/10 transition-all">
+          <button
+            onClick={() => {
+              localStorage.removeItem("client_session");
+              window.location.href = "/";
+            }}
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-red-500 hover:bg-red-500/10 transition-all w-full text-left"
+          >
             <LogOut className="w-5 h-5" />
             <span className="font-medium text-sm">Sign Out</span>
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -73,8 +92,8 @@ export default function ClientLayout({
            </div>
            <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className="text-sm font-bold text-white">Guest Client</p>
-                <p className="text-xs text-blue-400 font-medium uppercase tracking-wider">Onboarding</p>
+                <p className="text-sm font-bold text-white">{session ? session.name : "Guest Client"}</p>
+                <p className="text-xs text-blue-400 font-medium uppercase tracking-wider">{session ? (session.type === "live" ? "Active Trader" : session.type) : "Onboarding"}</p>
               </div>
            </div>
         </header>

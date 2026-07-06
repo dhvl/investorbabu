@@ -2,29 +2,21 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+const VPS_URL = 'https://api.investorbabu.com/api/broker/funds';
+
 export async function GET() {
   try {
-    const res = await fetch('https://api.investorbabu.com/api/broker/funds', {
+    const response = await fetch(VPS_URL, {
       cache: 'no-store',
       next: { revalidate: 0 }
     });
-    if (!res.ok) {
-      throw new Error(`VPS responded with status ${res.status}`);
+    if (response.ok) {
+      const data = await response.json();
+      return NextResponse.json(data);
     }
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (error: any) {
-    // Provide a resilient client-side fallback in case the VPS server is unreachable
-    return NextResponse.json({
-      status: "success",
-      source: "fallback_estimated",
-      data: {
-        cash: "100000.00",
-        available_limit: "100000.00",
-        utilized_limit: "0.00",
-        leverage: "5.0x",
-        realised_profit: "0.00"
-      }
-    });
+    return NextResponse.json({ status: "error", message: `VPS returned status ${response.status}` }, { status: response.status });
+  } catch (error) {
+    console.error("Failed to fetch funds:", error);
+    return NextResponse.json({ status: "error", message: String(error) }, { status: 500 });
   }
 }

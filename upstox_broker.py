@@ -92,8 +92,16 @@ def get_nifty_trend() -> float:
 
 
 def get_tick_size(symbol: str) -> float:
-    """Get tick size of the instrument."""
-    return 0.05
+    """Get tick size of the instrument in Rupees based on SMC Master."""
+    mapping = {
+        "TATASTEEL": 0.01,
+        "IDEA": 0.01,
+        "DLF": 0.05,
+        "ADANIENSOL": 0.10,
+        "HAVELLS": 0.10,
+        "POLYCAB": 0.50
+    }
+    return mapping.get(symbol.upper(), 0.05)
 
 
 def get_sizing_config(symbol, mode="live"):

@@ -145,16 +145,160 @@ def save_and_log_signal(signal, is_us):
     # Save to state.py so duplicate check works across runs
     save_signal(signal)
     
+    # Save locally to signals.json or us_signals.json so local simulations can run
+    local_file = "us_signals.json" if is_us else "signals.json"
+    try:
+        local_signals = []
+        if os.path.exists(local_file):
+            with open(local_file, "r") as f:
+                local_signals = json.load(f)
+        
+        # Avoid duplicate append
+        is_dup = any(s.get("instrument") == signal.get("instrument") and 
+                     s.get("candle_date") == signal.get("candle_date") and 
+                     s.get("candle_time") == signal.get("candle_time") for s in local_signals)
+        if not is_dup:
+            local_signals.append(signal)
+            with open(local_file, "w") as f:
+                json.dump(local_signals, f, indent=2)
+            logger.info(f"Saved signal to local {local_file}")
+    except Exception as e:
+        logger.error(f"Failed to save signal to local {local_file}: {e}")
+
     import db_helper
     db_helper.save_signal(signal)
 
 
 
+def get_last_completed_candle(symbol, is_us):
+    import yfinance as yf
+    import pandas as pd
+    import pytz
+    from inside_bar_helper import fetch_upstox_candles_combined, get_yfinance_ticker, get_timezone
+    from datetime import datetime, timedelta
+    
+    try:
+        ticker = get_yfinance_ticker(symbol, is_us)
+        tz = get_timezone(symbol, is_us)
+        now_tz = datetime.now(tz)
+        
+        # Get data for last 3 days
+        start_date = (now_tz - timedelta(days=3)).strftime("%Y-%m-%d")
+        end_date = (now_tz + timedelta(days=2)).strftime("%Y-%m-%d")
+        
+        df = pd.DataFrame()
+        if not is_us:
+            try:
+                df = fetch_upstox_candles_combined(symbol, start_date, end_date)
+            except Exception:
+                pass
+        
+        if df is None or df.empty:
+            try:
+                df = yf.download(ticker, start=start_date, end=end_date, interval="15m", progress=False)
+            except Exception:
+                pass
+                
+        if df is None or df.empty:
+            return None
+            
+        if df.index.tz is None:
+            df.index = df.index.tz_localize(pytz.UTC)
+        df.index = df.index.tz_convert(tz)
+        
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+            
+        # Get candles that are fully completed
+        completed = df[df.index + timedelta(minutes=15) <= now_tz]
+        if completed.empty:
+            return None
+            
+        last_idx = completed.index[-1]
+        last_row = completed.iloc[-1]
+        
+        return {
+            "time_range": f"{last_idx.strftime('%I:%M')} - {(last_idx + timedelta(minutes=15)).strftime('%I:%M %p')}",
+            "open": float(last_row["Open"]),
+            "high": float(last_row["High"]),
+            "low": float(last_row["Low"]),
+            "close": float(last_row["Close"])
+        }
+    except Exception as e:
+        logger.error(f"Error getting last candle for {symbol}: {e}")
+        return None
+
+
+def get_active_trade_status(symbol, is_us):
+    from trade_tracker import tracked_orders, daily_trades
+    import yfinance as yf
+    import pytz
+    
+    # 1. Check completed trades today
+    completed = [t for t in daily_trades if t.get("symbol") == symbol]
+    
+    # 2. Check active tracked orders (OPEN or COMPLETE)
+    active = [o for o in tracked_orders.values() if o.get("symbol") == symbol and o.get("status") in ["OPEN", "COMPLETE"]]
+    
+    if active:
+        # Sort so we see the latest one
+        active_sorted = sorted(active, key=lambda x: x.get("registered_at", ""), reverse=True)
+        o = active_sorted[0]
+        
+        if o["status"] == "OPEN":
+            return (
+                f"⏳ <b>Pending Breakout Trigger</b>\n"
+                f"  Trigger Price: ₹{o['entry_price']:.2f}\n"
+                f"  SL: ₹{o['stop_loss_price']:.2f} | Target: ₹{o['target_price']:.2f}"
+            )
+        elif o["status"] == "COMPLETE":
+            current_price = o["entry_price"]
+            try:
+                ticker = yf.Ticker(f"{symbol}.NS" if not is_us else symbol)
+                current_price = float(ticker.history(period="1d")["Close"].iloc[-1])
+            except Exception:
+                pass
+                
+            pnl_pct = ((current_price - o["entry_price"]) / o["entry_price"]) * 100
+            if o["transaction_type"] == "SELL":
+                pnl_pct = -pnl_pct
+                
+            direction = "🟢 Moving in target direction" if pnl_pct >= 0 else "🔴 Pulling back"
+            return (
+                f"🚀 <b>Active {o['transaction_type']} Trade</b>\n"
+                f"  Entry: ₹{o['entry_price']:.2f} | Current: ₹{current_price:.2f} ({pnl_pct:+.2f}%)\n"
+                f"  {direction}\n"
+                f"  SL: ₹{o['stop_loss_price']:.2f} | Target: ₹{o['target_price']:.2f}"
+            )
+            
+    elif completed:
+        lines = []
+        for i, t in enumerate(completed):
+            pnl = t.get("pnl", 0.0)
+            sign = "🟢 Profit" if pnl >= 0 else "🔴 Loss"
+            lines.append(f"  Attempt {i+1}: {sign} of Rs {pnl:+.2f} ({t.get('time', '')})")
+            
+        trades_summary = "\n".join(lines)
+        if len(completed) < 2:
+            return (
+                f"⚠️ <b>1 Trade Completed Today (Attempt 2 Pending)</b>\n"
+                f"{trades_summary}"
+            )
+        else:
+            return (
+                f"🏁 <b>Completed Daily Trade Limit (2/2)</b>\n"
+                f"{trades_summary}"
+            )
+            
+    return None
+
+
 def run_scan():
     """Unified programmatic scan cycle for all active asset classes."""
-    from trade_engine import _is_already_traded
+    from trade_engine import get_today_trades_count
     logger.info(f"--- Programmatic scan started at {datetime.now().strftime('%H:%M:%S')} ---")
     signals_found = 0
+    signals_found_symbols = []
 
     indian_symbols, us_symbols, crypto_symbols = load_symbols()
     scan_list = []  # List of (symbol, is_us)
@@ -185,8 +329,8 @@ def run_scan():
 
     for symbol, is_us in scan_list:
         try:
-            # Skip if Indian stock is already traded today
-            if not is_us and _is_already_traded(symbol):
+            # Skip if Indian stock has already hit max trades (2) today
+            if not is_us and get_today_trades_count(symbol) >= 2:
                 continue
 
             # Check today's date in correct timezone
@@ -275,6 +419,7 @@ def run_scan():
                         
                 save_and_log_signal(signal, is_us)
                 signals_found += 1
+                signals_found_symbols.append(symbol)
                 logger.info(f"Alert sent to Team for {symbol}")
             else:
                 logger.error(f"Failed to send Telegram alert for {symbol}")
@@ -282,14 +427,21 @@ def run_scan():
 
             # --- EXECUTION ---
             if not is_us:
-                # Place trade via Zerodha Kite
+                # Place trade via SMC
                 from trade_engine import execute_signal
                 trade_ok = execute_signal(signal)
                 if trade_ok:
-                    logger.info(f"Kite orders placed for {symbol}")
+                    logger.info(f"SMC orders placed for {symbol}")
                     signal["status"] = "TRADED"
                 else:
                     signal["status"] = "SKIPPED"
+                
+                # Trigger Indian simulation replays in background
+                try:
+                    subprocess.Popen(["python3.11", "replay_today.py"])
+                    subprocess.Popen(["python3.11", "eashaan_replay_today.py"])
+                except Exception as re_err:
+                    logger.error(f"Failed to trigger Indian replays: {re_err}")
             else:
                 # US commodities and Crypto simulation execution
                 buy_target = round(b_entry * 1.01, dec_places)
@@ -326,6 +478,84 @@ def run_scan():
             logger.error(f"Crash processing {symbol}: {e}")
             send_admin_only_message(format_error_message(f"Crash processing {symbol}: {e}"))
             continue
+
+    # Send NSE Candle Scan Report every 15 minutes to Indian Channel
+    try:
+        if is_market_open():
+            now_ist = datetime.now(IST)
+            lines = []
+            for sym in indian_symbols:
+                status = get_active_trade_status(sym, is_us=False)
+                
+                if status:
+                    lines.append(
+                        f"• <b>#{sym}</b>\n"
+                        f"  {status}\n"
+                    )
+                else:
+                    ohlc = get_last_completed_candle(sym, is_us=False)
+                    if ohlc:
+                        lines.append(
+                            f"• <b>#{sym}</b> ({ohlc['time_range']})\n"
+                            f"  O: {ohlc['open']:.2f} | H: {ohlc['high']:.2f} | L: {ohlc['low']:.2f} | C: {ohlc['close']:.2f}\n"
+                            f"  Status: ⚪ Scanning (Inside Bar not formed)\n"
+                        )
+                    else:
+                        lines.append(
+                            f"• <b>#{sym}</b>\n"
+                            f"  Status: ⚪ Scanning (Inside Bar not formed)\n"
+                        )
+            
+            joined_lines = '\n'.join(lines)
+            msg = (
+                f"📊 <b>NSE CANDLE SCAN — {now_ist.strftime('%I:%M %p')}</b>\n\n"
+                f"{joined_lines}"
+            )
+            send_trade_message(msg)
+    except Exception as report_err:
+        logger.error(f"Failed to generate candle scan report: {report_err}")
+
+    # Send US/Crypto Candle Scan Report every 15 minutes to US Channel
+    try:
+        active_us_crypto = []
+        if is_us_commodities_open():
+            active_us_crypto.extend(us_symbols)
+        active_us_crypto.extend(crypto_symbols)
+        
+        if active_us_crypto:
+            now_ist = datetime.now(IST)
+            lines = []
+            for sym in active_us_crypto:
+                status = get_active_trade_status(sym, is_us=True)
+                
+                if status:
+                    lines.append(
+                        f"• <b>#{sym}</b>\n"
+                        f"  {status}\n"
+                    )
+                else:
+                    ohlc = get_last_completed_candle(sym, is_us=True)
+                    if ohlc:
+                        lines.append(
+                            f"• <b>#{sym}</b> ({ohlc['time_range']})\n"
+                            f"  O: {ohlc['open']:.2f} | H: {ohlc['high']:.2f} | L: {ohlc['low']:.2f} | C: {ohlc['close']:.2f}\n"
+                            f"  Status: ⚪ Scanning\n"
+                        )
+                    else:
+                        lines.append(
+                            f"• <b>#{sym}</b>\n"
+                            f"  Status: ⚪ Scanning\n"
+                        )
+                    
+            joined_lines = '\n'.join(lines)
+            msg = (
+                f"📊 <b>US & CRYPTO CANDLE SCAN — {now_ist.strftime('%I:%M %p')}</b>\n\n"
+                f"{joined_lines}"
+            )
+            # Route to US channel based on symbol mention
+            send_trade_message(msg)
+    except Exception as report_err:
+        logger.error(f"Failed to generate US/Crypto candle scan report: {report_err}")
 
     # Check for expired signals in state
     expired = check_expired_signals()
@@ -383,8 +613,6 @@ def main():
     except Exception as e:
         logger.error(f"Failed to generate SMC session token on startup: {e}")
         
-    reset_daily_state()
-
     last_reset_date = datetime.now().date()
 
     while True:
