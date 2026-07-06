@@ -57,10 +57,15 @@ export default function ClientDashboard() {
         if (res.ok) {
           const data = await res.json();
           const rawTrades = Array.isArray(data) ? data : [];
+          
+          // Calculate today's date in Asia/Kolkata timezone (YYYY-MM-DD format)
+          const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+          
           const filteredTrades = rawTrades.filter((t: any) => 
-            t.transaction_type === "BUY" || 
-            t.transaction_type === "SELL" || 
-            t.transaction_type === "TRADED"
+            t.date === todayStr &&
+            (t.transaction_type === "BUY" || 
+             t.transaction_type === "SELL" || 
+             t.transaction_type === "TRADED")
           );
           setTrades(filteredTrades);
         }

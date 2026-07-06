@@ -5,7 +5,8 @@ import {
   Bell, 
   CreditCard,
   UserPlus,
-  LogOut
+  LogOut,
+  History
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -25,15 +26,18 @@ export default function ClientLayout({
       const stored = localStorage.getItem("client_session");
       if (stored) {
         setSession(JSON.parse(stored));
+      } else if (pathname !== "/" && pathname !== "/login" && pathname !== "") {
+        window.location.href = "/";
       }
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [pathname]);
 
   const navItems = [
     { id: "dashboard", label: "Signal Feed", icon: Bell, href: "/dashboard" },
     { id: "instruments", label: "My Instruments", icon: TrendingUp, href: "/instruments" },
+    { id: "learnings", label: "Trade History", icon: History, href: "/learnings" },
     { id: "onboarding", label: "Onboarding Wizard", icon: UserPlus, href: "/onboarding" },
     { id: "subscription", label: "Subscription", icon: CreditCard, href: "/subscription" },
   ];
