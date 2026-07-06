@@ -208,11 +208,13 @@ export default function ClientHistoryPage() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {symbolPerformance.map(p => (
-                <GlassCard key={p.symbol} className="p-5 border-white/5 bg-slate-900/40 relative overflow-hidden group">
-                  <div className={cn(
-                    "absolute top-0 left-0 w-1 h-full",
-                    p.pnl > 0 ? "bg-emerald-500" : p.pnl < 0 ? "bg-red-500" : "bg-slate-500"
-                  )} />
+                <GlassCard 
+                  key={p.symbol} 
+                  className={cn(
+                    "p-5 bg-slate-900/40 relative overflow-hidden group border border-white/5",
+                    p.pnl > 0 ? "border-l-4 border-l-emerald-500" : p.pnl < 0 ? "border-l-4 border-l-red-500" : "border-l-4 border-l-slate-500"
+                  )}
+                >
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h4 className="text-base font-bold text-white tracking-wide">#{p.symbol}</h4>
