@@ -272,9 +272,22 @@ export async function getSummary() {
 }
 
 export async function getSimulatedOrders() {
+  let allOrders: any[] = [];
   const orders = await fetchFromVPS('simulated_orders');
-  if (!Array.isArray(orders)) return [];
-  return orders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+  if (Array.isArray(orders)) {
+    allOrders = orders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+  }
+
+  // Workaround: Pull today's Indian simulated trades from us_simulated_orders where they were misrouted on VPS
+  const liveUsOrders = await fetchFromVPS('us_simulated_orders');
+  if (Array.isArray(liveUsOrders)) {
+    const indianUS = liveUsOrders
+      .filter((o: any) => !["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD", "BTCUSD"].includes(o.symbol))
+      .map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+    allOrders.push(...indianUS);
+  }
+
+  return allOrders;
 }
 
 export async function getUsSimulatedOrders() {
@@ -338,7 +351,8 @@ export async function getUsSimulatedOrders() {
     });
   }
   
-  return allOrders.filter(o => o.symbol !== "BTCUSD");
+  // Filter for US commodities only (exclude Indian symbols and BTCUSD)
+  return allOrders.filter(o => ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol));
 }
 
 export async function getEashaanSimulatedOrders() {

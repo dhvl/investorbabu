@@ -69,7 +69,8 @@ SMC_TOKENS = {
     "HAVELLS": "9819",
     "DLF": "14732",
     "ADANIENSOL": "10217",
-    "IDEA": "14366"
+    "IDEA": "14366",
+    "BHEL": "438"
 }
 
 def get_nifty_trend() -> float:
