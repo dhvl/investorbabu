@@ -64,4 +64,7 @@ browser_profile/
 !/execution/telegram_bot.py
 !/eashaan_simulation_tracker.py
 !/eashaan_replay_today.py
+!/trade_tracker.py
+!/upstox_broker.py
+
 

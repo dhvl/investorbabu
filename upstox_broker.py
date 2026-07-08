@@ -119,13 +119,24 @@ def get_sizing_config(symbol, mode="live"):
             pass
     return 50000.0, 0.0
 
-def calculate_quantity(symbol: str, price: float) -> int:
+def calculate_quantity(symbol: str, price: float, direction: str = "BUY") -> int:
     if price <= 0:
         return 0
     capital, lot_size = get_sizing_config(symbol, "live")
     if lot_size > 0:
         return int(lot_size)
+    try:
+        nifty_trend = get_nifty_trend()
+        if nifty_trend > 0.5 and direction.upper() == "BUY":
+            capital *= 1.5
+            logger.info(f"[Sizing] Nifty Trend is +{nifty_trend:.2f}%. Scaling BUY capital for {symbol} by 1.5x to Rs {capital}")
+        elif nifty_trend < -0.5 and direction.upper() == "SELL":
+            capital *= 1.5
+            logger.info(f"[Sizing] Nifty Trend is {nifty_trend:.2f}%. Scaling SELL capital for {symbol} by 1.5x to Rs {capital}")
+    except Exception as e:
+        logger.error(f"[Sizing] Failed to check nifty trend for dynamic sizing: {e}")
     return max(int(capital / price), 1)
+
 
 
 def get_instrument_key(symbol: str) -> str:
@@ -280,6 +291,66 @@ def place_gtt_oco(symbol: str, current_price: float, quantity: int,
         logger.error(f"[SMC] GTT/SL placement exception: {e}")
         
     return {"success": False, "gtt_id": None, "message": "Failed to place stop loss exit order."}
+
+
+def get_ltp(symbol: str) -> float:
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}.NS"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            price = data["chart"]["result"][0]["meta"]["regularMarketPrice"]
+            return float(price)
+    except Exception as e:
+        logger.error(f"[LTP] Error fetching quote for {symbol}: {e}")
+    return 0.0
+
+
+def place_regular_order(symbol: str, action: str, quantity: int, order_type: str = "MARKET", price: float = 0.0) -> dict:
+    """
+    Place a regular Market or Limit order (e.g. for pyramiding entry or target square-off).
+    action: "BUY" or "SELL"
+    order_type: "MARKET" or "LIMIT"
+    """
+    inst_token = get_instrument_key(symbol)
+    headers = get_smc_headers()
+    
+    payload = {
+        "action": action.upper(),
+        "exchange": "NSE",
+        "token": inst_token,
+        "order_type": order_type.upper(),
+        "product_type": "INTRADAY",
+        "quantity": str(quantity),
+        "disclose_quantity": "0",
+        "price": str(price) if order_type.upper() == "LIMIT" else "0",
+        "trigger_price": "0",
+        "stop_loss_price": "0",
+        "trailing_stop_loss": "0",
+        "validity": "DAY",
+        "tag": "bc_reg",
+        "client_ip": "160.250.204.141",
+        "x-algo-id": "99999"
+    }
+    
+    logger.info(f"[SMC] Placing regular {order_type} {action}: {symbol} x{quantity} price={price}")
+    
+    try:
+        res = requests.post("https://openapi.smctradeonline.com/orders/normal", json=payload, headers=headers, timeout=10)
+        res_data = res.json()
+        if res.status_code == 200 and res_data.get("status") == "success":
+            order_id = res_data["data"]["order_id"]
+            logger.info(f"[SMC] Regular order placed successfully: {order_id}")
+            return {"success": True, "order_id": order_id, "message": "Placed successfully"}
+        else:
+            err_msg = res_data.get("message") or res_data.get("code") or "Unknown error"
+            logger.error(f"[SMC] Regular order failed: {err_msg}")
+            return {"success": False, "order_id": None, "message": err_msg}
+    except Exception as e:
+        logger.error(f"[SMC] Regular order exception: {e}")
+        return {"success": False, "order_id": None, "message": str(e)}
+
 
 
 def delete_gtt(gtt_id: str) -> bool:
