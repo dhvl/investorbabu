@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { GlassCard } from "@/components/GlassCard";
 import Badge from "@/components/ui/Badge";
 import { Bell, Zap, Info, Wallet, TrendingUp, Scan, Loader2 } from "lucide-react";
@@ -127,6 +127,61 @@ export default function ClientDashboard() {
       return acc;
     }, {});
   };
+
+  // Compute Net Positions from trades to mirror the SMC RMS desk screenshot
+  const netPositions = useMemo(() => {
+    const positionMap: Record<string, {
+      buyQty: number;
+      buyVal: number;
+      sellQty: number;
+      sellVal: number;
+    }> = {};
+
+    trades.forEach((t: any) => {
+      const sym = t.symbol || t.stock;
+      if (!sym) return;
+
+      if (!positionMap[sym]) {
+        positionMap[sym] = { buyQty: 0, buyVal: 0, sellQty: 0, sellVal: 0 };
+      }
+
+      const qty = t.quantity || 0;
+      const entry = t.entry_price || 0;
+      const exit = t.exit_price || 0;
+
+      if (t.transaction_type === "BUY") {
+        positionMap[sym].buyQty += qty;
+        positionMap[sym].buyVal += qty * entry;
+        if (exit) {
+          positionMap[sym].sellQty += qty;
+          positionMap[sym].sellVal += qty * exit;
+        }
+      } else if (t.transaction_type === "SELL") {
+        positionMap[sym].sellQty += qty;
+        positionMap[sym].sellVal += qty * entry;
+        if (exit) {
+          positionMap[sym].buyQty += qty;
+          positionMap[sym].buyVal += qty * exit;
+        }
+      }
+    });
+
+    return Object.entries(positionMap).map(([symbol, data]) => {
+      const buyAvg = data.buyQty > 0 ? data.buyVal / data.buyQty : 0;
+      const sellAvg = data.sellQty > 0 ? data.sellVal / data.sellQty : 0;
+      const netQty = data.buyQty - data.sellQty;
+      return {
+        symbol,
+        buyQty: data.buyQty,
+        buyVal: data.buyVal,
+        buyAvg,
+        sellQty: data.sellQty,
+        sellVal: data.sellVal,
+        sellAvg,
+        netQty
+      };
+    });
+  }, [trades]);
 
   return (
     <div className="p-8 pb-24 max-w-6xl mx-auto space-y-10">
@@ -303,6 +358,73 @@ export default function ClientDashboard() {
           </div>
         )}
       </div>
+
+      {/* Integrated Net Position Terminal Table */}
+      {netPositions.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-bold text-white tracking-tight border-l-2 border-emerald-500 pl-2">
+            Integrated Net Position (RMS Based)
+          </h3>
+          <div className="bg-[#0b0f16]/90 border border-emerald-500/30 rounded-2xl p-6 font-mono text-[11px] leading-relaxed text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.02)] overflow-hidden">
+            <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2 mb-4">
+              <span className="text-emerald-400 font-bold uppercase tracking-wider text-xs flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> SMC RMS NET POSITION MONITOR
+              </span>
+              <span className="text-emerald-500/50 text-[9px]">SYSTEM STATUS: ACTIVE</span>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-emerald-500/20 text-emerald-400 font-bold">
+                    <th className="py-2 pr-4">SCRIP NAME</th>
+                    <th className="py-2 px-2 text-right">BUY QTY</th>
+                    <th className="py-2 px-2 text-right">BUY VAL</th>
+                    <th className="py-2 px-2 text-right">BUY AVG</th>
+                    <th className="py-2 px-2 text-right">SELL QTY</th>
+                    <th className="py-2 px-2 text-right">SELL VAL</th>
+                    <th className="py-2 px-2 text-right">SELL AVG</th>
+                    <th className="py-2 pl-4 text-right font-bold text-emerald-300">NET QTY</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-emerald-500/10">
+                  {netPositions.map((pos) => (
+                    <tr key={pos.symbol} className="hover:bg-emerald-500/[0.02] transition-colors">
+                      <td className="py-2.5 pr-4 text-white font-bold">{pos.symbol}</td>
+                      <td className="py-2.5 px-2 text-right text-slate-300">{pos.buyQty}</td>
+                      <td className="py-2.5 px-2 text-right text-slate-300">₹{pos.buyVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                      <td className="py-2.5 px-2 text-right text-slate-400">₹{pos.buyAvg.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                      <td className="py-2.5 px-2 text-right text-slate-300">{pos.sellQty}</td>
+                      <td className="py-2.5 px-2 text-right text-slate-300">₹{pos.sellVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                      <td className="py-2.5 px-2 text-right text-slate-400">₹{pos.sellAvg.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                      <td className={cn(
+                        "py-2.5 pl-4 text-right font-bold",
+                        pos.netQty === 0 ? "text-emerald-500/40" : "text-amber-400"
+                      )}>
+                        {pos.netQty}
+                      </td>
+                    </tr>
+                  ))}
+                  
+                  {/* Totals Row */}
+                  <tr className="border-t-2 border-emerald-500/20 text-emerald-400 font-bold bg-emerald-500/[0.01]">
+                    <td className="py-3 pr-4 text-emerald-300 font-bold">(ALL)</td>
+                    <td className="py-3 px-2 text-right">{netPositions.reduce((sum, p) => sum + p.buyQty, 0)}</td>
+                    <td className="py-3 px-2 text-right">₹{netPositions.reduce((sum, p) => sum + p.buyVal, 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td className="py-3 px-2 text-right text-emerald-500/30">—</td>
+                    <td className="py-3 px-2 text-right">{netPositions.reduce((sum, p) => sum + p.sellQty, 0)}</td>
+                    <td className="py-3 px-2 text-right">₹{netPositions.reduce((sum, p) => sum + p.sellVal, 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td className="py-3 px-2 text-right text-emerald-500/30">—</td>
+                    <td className="py-3 pl-4 text-right text-emerald-300 font-bold">
+                      {netPositions.reduce((sum, p) => sum + p.netQty, 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Live Order Book */}
       <div className="space-y-6">

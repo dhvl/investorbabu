@@ -2,7 +2,7 @@
 
 import { GlassCard } from "@/components/GlassCard";
 import Badge from "@/components/ui/Badge";
-import { TrendingUp, AlertTriangle, CheckCircle, RefreshCw, BarChart2, Calendar, ShieldCheck, Compass } from "lucide-react";
+import { TrendingUp, AlertTriangle, CheckCircle, RefreshCw, BarChart2, Calendar, ShieldCheck, Compass, Wallet } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ export default function ClientHistoryPage() {
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>("");
+  const [funds, setFunds] = useState<any>(null);
 
   async function fetchTrades() {
     setLoading(true);
@@ -28,8 +29,23 @@ export default function ClientHistoryPage() {
     }
   }
 
+  async function fetchFunds() {
+    try {
+      const res = await fetch("/api/broker/funds");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === "success" && json.data) {
+          setFunds(json.data);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch funds:", err);
+    }
+  }
+
   useEffect(() => {
     fetchTrades();
+    fetchFunds();
   }, []);
 
   // Extract and sort unique dates descending (filter to actual live launch since July 1, 2026)
@@ -56,7 +72,8 @@ export default function ClientHistoryPage() {
   // Filter trades matching the selected date
   const filteredTrades = useMemo(() => {
     if (!selectedDate) return [];
-    return trades.filter((o: any) => o.date === selectedDate);
+    // Only count active trades (exclude status: "ZERO_TRADES")
+    return trades.filter((o: any) => o.date === selectedDate && o.status !== "ZERO_TRADES");
   }, [trades, selectedDate]);
 
   // Compute metrics dynamically for the selected date
@@ -83,6 +100,16 @@ export default function ClientHistoryPage() {
     return { totalTrades, winRate, profitFactor, totalPnL };
   }, [filteredTrades]);
 
+  // Compute actual cash capital deployed based on 4k per unique stock traded
+  const roiMetrics = useMemo(() => {
+    const uniqueStocks = new Set(filteredTrades.map((t: any) => t.stock || t.symbol));
+    const uniqueStocksCount = uniqueStocks.size;
+    const deployedCapital = uniqueStocksCount * 4000 || 20000; // Default to 20,000 to avoid division by zero
+    const dailyROI = ((metrics.totalPnL / deployedCapital) * 100).toFixed(2) + "%";
+    
+    return { uniqueStocksCount, deployedCapital, dailyROI };
+  }, [filteredTrades, metrics.totalPnL]);
+
   // Compute instrument performance breakdown for the selected date
   const symbolPerformance = useMemo(() => {
     const symbolPerformanceMap: Record<string, { pnl: number; wins: number; total: number; capital: number }> = {};
@@ -103,7 +130,8 @@ export default function ClientHistoryPage() {
 
     return Object.entries(symbolPerformanceMap).map(([symbol, stats]) => {
       const winRate = stats.total > 0 ? ((stats.wins / stats.total) * 100).toFixed(0) + "%" : "0%";
-      const returnPct = stats.capital > 0 ? ((stats.pnl / stats.capital) * 100).toFixed(2) + "%" : "0.00%";
+      // Use 4,000 cash margin for ROI per symbol instead of full contract capital
+      const returnPct = stats.pnl >= 0 ? "+" + ((stats.pnl / 4000) * 100).toFixed(2) + "%" : ((stats.pnl / 4000) * 100).toFixed(2) + "%";
       return {
         symbol,
         pnl: parseFloat(stats.pnl.toFixed(2)),
@@ -147,7 +175,7 @@ export default function ClientHistoryPage() {
             )}
           </select>
           <button 
-            onClick={fetchTrades}
+            onClick={() => { fetchTrades(); fetchFunds(); }}
             disabled={loading}
             className="text-slate-400 hover:text-white transition-colors pl-2 border-l border-white/10"
           >
@@ -172,21 +200,22 @@ export default function ClientHistoryPage() {
           {/* Daily Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <GlassCard className="p-6">
-              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">Total Executed Trades</p>
-              <h3 className="text-2xl font-bold font-mono text-white">{metrics.totalTrades}</h3>
-              <p className="text-[10px] text-text-secondary mt-1">Leg executions today</p>
+              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">Total Fund Available</p>
+              <h3 className="text-2xl font-bold font-mono text-white">
+                ₹{funds ? parseFloat(funds.available_limit).toLocaleString(undefined, {minimumFractionDigits: 2}) : "1,00,000.00"}
+              </h3>
+              <p className="text-[10px] text-text-secondary mt-1">Available balance in SMC account</p>
             </GlassCard>
             
             <GlassCard className="p-6">
-              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">Win Rate</p>
-              <h3 className="text-2xl font-bold font-mono text-blue-400">{metrics.winRate}</h3>
-              <p className="text-[10px] text-text-secondary mt-1">Percentage profitable trades</p>
-            </GlassCard>
-
-            <GlassCard className="p-6">
-              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">Profit Factor</p>
-              <h3 className="text-2xl font-bold font-mono text-white">{metrics.profitFactor}</h3>
-              <p className="text-[10px] text-text-secondary mt-1">Ratio gross profit to loss</p>
+              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">Today's ROI</p>
+              <h3 className={cn(
+                "text-2xl font-bold font-mono",
+                metrics.totalPnL > 0 ? "text-emerald-400" : metrics.totalPnL < 0 ? "text-red-400" : "text-white"
+              )}>{metrics.totalPnL >= 0 ? "+" : ""}{roiMetrics.dailyROI}</h3>
+              <p className="text-[10px] text-text-secondary mt-1">
+                On ₹{roiMetrics.deployedCapital.toLocaleString()} margin deployed ({roiMetrics.uniqueStocksCount} stocks)
+              </p>
             </GlassCard>
 
             <GlassCard className="p-6">
@@ -198,6 +227,12 @@ export default function ClientHistoryPage() {
                 ₹{metrics.totalPnL > 0 ? "+" : ""}{metrics.totalPnL.toFixed(2)}
               </h3>
               <p className="text-[10px] text-text-secondary mt-1">Net outcome for the day</p>
+            </GlassCard>
+
+            <GlassCard className="p-6">
+              <p className="text-text-secondary text-xs uppercase font-bold tracking-wider mb-1">Win Rate</p>
+              <h3 className="text-2xl font-bold font-mono text-blue-400">{metrics.winRate}</h3>
+              <p className="text-[10px] text-text-secondary mt-1">Percentage profitable trades ({metrics.totalTrades} trades)</p>
             </GlassCard>
           </div>
 
