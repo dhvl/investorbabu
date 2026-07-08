@@ -213,9 +213,12 @@ def check_orders():
                 # For SMC, MARKET orders are not allowed on the API platform, so we place a LIMIT order
                 # slightly below LTP (for SELL) or above LTP (for BUY) to guarantee immediate execution.
                 exit_limit_price = round(ltp - 0.15, 2) if exit_action == "SELL" else round(ltp + 0.15, 2)
+                exit_success = False
+                err_details = "Unknown error"
                 try:
                     res_exit = place_regular_order(symbol, exit_action, qty, "LIMIT", exit_limit_price)
                     if res_exit["success"]:
+                        exit_success = True
                         time.sleep(1)
                         try:
                             fresh_orders = get_orders()
@@ -225,8 +228,25 @@ def check_orders():
                                 exit_price = float(exit_order["average_price"])
                         except Exception:
                             pass
+                    else:
+                        err_details = res_exit.get("message", "Broker rejection")
                 except Exception as exit_err:
                     logger.error(f"[Tracker] Target exit square-off failed: {exit_err}")
+                    err_details = str(exit_err)
+
+                if not exit_success:
+                    logger.error(f"[Tracker] Target exit failed for {symbol}: {err_details}")
+                    if not tracked.get("target_alert_sent"):
+                        tracked["target_alert_sent"] = True
+                        save_tracked_orders()
+                        msg = (
+                            f"🚨 <b>CRITICAL: TARGET EXIT FAILED — {symbol}</b>\n\n"
+                            f"Target of Rs {target:.2f} was hit (LTP Rs {ltp:.2f}), but the exit order failed!\n"
+                            f"Error: {err_details}\n\n"
+                            f"⚠️ <b>Action Required:</b> Please square off the position manually in your broker terminal immediately!"
+                        )
+                        send_trade_message(msg)
+                    continue
 
                 if tx_type == "BUY":
                     pnl = (exit_price - avg_entry) * qty
