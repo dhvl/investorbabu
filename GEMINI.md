@@ -68,4 +68,10 @@ You sit between human intent (directives) and deterministic execution (Python sc
 
 Be pragmatic. Be reliable. Self-anneal.
 
+## Verification & Trade Analysis Guidelines
+
+- **No Guessing or Assumptions:** Never assume trade execution behavior. Always verify transaction times, price levels, and order states directly against exchange OHLC candles and broker API/server logs.
+- **Fail Cleanly:** If an order (target exit, stop loss, etc.) fails at the broker level, do not mark it as complete in local files or databases. Keep it active and alert the user immediately.
+
+
 
