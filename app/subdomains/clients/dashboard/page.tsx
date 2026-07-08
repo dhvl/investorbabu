@@ -370,7 +370,9 @@ export default function ClientDashboard() {
               <span className="text-emerald-400 font-bold uppercase tracking-wider text-xs flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> SMC RMS NET POSITION MONITOR
               </span>
-              <span className="text-emerald-500/50 text-[9px]">SYSTEM STATUS: ACTIVE</span>
+              <span className="text-emerald-500/50 text-[9px]">
+                DATE: {new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' }).replace(/\//g, ' / ')} | SYSTEM STATUS: ACTIVE
+              </span>
             </div>
             
             <div className="overflow-x-auto">
