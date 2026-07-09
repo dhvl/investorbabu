@@ -333,8 +333,23 @@ def check_orders():
                                 )
                                 if gtt_res["success"]:
                                     new_sl_order_id = gtt_res.get("gtt_id")
+                                else:
+                                    err_msg = gtt_res.get("message", "Broker rejection")
+                                    logger.error(f"[Tracker] Trailed SL GTT placement failed for {symbol}: {err_msg}")
+                                    send_trade_message(
+                                        f"🚨 <b>WARNING: Trailed SL Placement Failed — {symbol}</b>\n\n"
+                                        f"Position doubled, but trailing Stop Loss placement failed!\n"
+                                        f"Error: {err_msg}\n\n"
+                                        f"⚠️ <b>Action Required:</b> Please place your trailed SL order of {qty * 2} shares manually at Rs {new_sl:.2f}."
+                                    )
                             except Exception as sl_err:
                                 logger.error(f"[Tracker] Failed to place new trailed SL order: {sl_err}")
+                                send_trade_message(
+                                    f"🚨 <b>WARNING: Trailed SL Placement Exception — {symbol}</b>\n\n"
+                                    f"Position doubled, but trailing Stop Loss placement encountered an error!\n"
+                                    f"Error: {sl_err}\n\n"
+                                    f"⚠️ <b>Action Required:</b> Please place your trailed SL order of {qty * 2} shares manually at Rs {new_sl:.2f}."
+                                )
 
                             # Update tracked status
                             tracked["pyramided"] = True
@@ -354,8 +369,23 @@ def check_orders():
                                 f"Time: {get_ist_now().strftime('%I:%M %p IST')}"
                             )
                             send_trade_message(msg)
+                        else:
+                            err_msg = res_pyr.get("message", "Broker rejection")
+                            logger.error(f"[Tracker] Pyramiding order failed for {symbol}: {err_msg}")
+                            send_trade_message(
+                                f"⚠️ <b>WARNING: Pyramiding Order Failed — {symbol}</b>\n\n"
+                                f"Pyramiding was triggered at Rs {ltp:.2f}, but the broker order failed to place!\n"
+                                f"Error: {err_msg}\n\n"
+                                f"No manual action is required, the system will retry placement in the next loop."
+                            )
                     except Exception as pyr_err:
                         logger.error(f"[Tracker] Pyramiding order placement failed: {pyr_err}")
+                        send_trade_message(
+                            f"⚠️ <b>WARNING: Pyramiding Exception — {symbol}</b>\n\n"
+                            f"Pyramiding was triggered at Rs {ltp:.2f}, but order placement encountered an error!\n"
+                            f"Error: {pyr_err}\n\n"
+                            f"No manual action is required, the system will retry placement in the next loop."
+                        )
 
             continue
 
