@@ -900,15 +900,9 @@ def get_system_logs():
 @app.route("/api/broker/funds", methods=["GET"])
 def get_broker_funds():
     import requests
-    token_path = "/home/investo/bluecandle/upstox_token.txt"
-    token = ""
-    if os.path.exists(token_path):
-        try:
-            with open(token_path, "r") as f:
-                token = f.read().strip()
-        except Exception:
-            pass
-
+    from upstox_broker import get_smc_headers
+    tokens_path = "/home/investo/bluecandle/smc_tokens.json"
+    
     # Read today's simulated trades to calculate dynamic daily P&L
     today_pnl = 0.0
     try:
@@ -918,14 +912,13 @@ def get_broker_funds():
                 orders = json.load(f)
                 import datetime
                 today_str = datetime.datetime.now().strftime("%d %b %Y")
-                # Remove leading zero from day if present in order date to match e.g. "02 Jul 2026" vs "2 Jul 2026"
                 if today_str.startswith("0"):
                     today_str = today_str[1:]
                 today_pnl = sum(float(o.get("pnl", 0.0)) for o in orders if o.get("date") == today_str)
     except Exception:
         pass
 
-    if not token:
+    if not os.path.exists(tokens_path):
         return jsonify({
             "status": "success",
             "source": "simulated_empty_token",
@@ -938,14 +931,7 @@ def get_broker_funds():
             }
         })
 
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-
     try:
-        from upstox_broker import get_smc_headers
         res = requests.get("https://openapi.smctradeonline.com/funds", headers=get_smc_headers(), timeout=5)
         if res.status_code == 200:
             res_data = res.json()
