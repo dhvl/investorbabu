@@ -28,6 +28,7 @@ tracked_orders  = {}   # order_id → last known status
 daily_trades    = []   # completed trade records
 summary_sent    = False
 auto_off_done   = False
+hard_stop_done  = False
 
 def load_tracked_orders():
     global tracked_orders
@@ -619,7 +620,7 @@ def auto_square_off_all():
 
 def run_tracker():
     """Main tracker loop — runs with fast polling during market hours."""
-    global summary_sent, auto_off_done
+    global summary_sent, auto_off_done, hard_stop_done
     logger.info("[Tracker] Started order tracking")
     load_daily_log()
     load_tracked_orders()
@@ -628,7 +629,21 @@ def run_tracker():
         try:
             now = get_ist_now()
 
-            # Send daily summary at 3:30 PM (only on trading days)
+            # 1. Run daily auto-square off at 3:00 PM (15:00 IST)
+            if now.hour == 15 and now.minute >= 0 and not auto_off_done:
+                if is_trading_day():
+                    auto_square_off_all()
+                    send_trade_message("🕒 <b>SYSTEM: 3:00 PM Auto Square-off Completed</b>\n\nAll pending breakout orders cancelled and active positions squared off.")
+                auto_off_done = True
+
+            # 2. Run daily hard-stop square off at 3:30 PM (15:30 IST)
+            if now.hour == 15 and now.minute >= 30 and not hard_stop_done:
+                if is_trading_day():
+                    auto_square_off_all()
+                    send_trade_message("🛑 <b>SYSTEM: 3:30 PM Hard Stop Square-off Executed</b>\n\nAll remaining positions squared off before market close.")
+                hard_stop_done = True
+
+            # 3. Send daily summary at 3:30 PM (only on trading days, after hard stop)
             if now.hour == 15 and now.minute >= 30 and not summary_sent:
                 if is_trading_day():
                     send_daily_summary()
@@ -636,17 +651,11 @@ def run_tracker():
                     summary_sent = True
                     logger.info("[Tracker] Weekend/Holiday detected, skipping daily summary alert.")
 
-            # Run daily auto-square off at 3:45 PM
-            if now.hour == 15 and now.minute >= 45 and not auto_off_done:
-                if is_trading_day():
-                    auto_square_off_all()
-                    send_trade_message("🕒 <b>SYSTEM: 3:45 PM Auto Square-off Completed</b>\n\nAll pending breakout orders cancelled and active positions squared off.")
-                auto_off_done = True
-
             # Reset flags at midnight
             if now.hour == 0 and now.minute == 0:
                 summary_sent = False
                 auto_off_done = False
+                hard_stop_done = False
                 daily_trades.clear()
 
             # Check orders during and after market hours
