@@ -626,6 +626,13 @@ def main():
                 logger.info("New trading day — resetting daily state")
                 reset_daily_state()
                 
+                # Clear yesterday's in-memory placed orders cache
+                try:
+                    from trade_engine import reset_daily_orders
+                    reset_daily_orders()
+                except Exception as e:
+                    logger.error(f"Failed to reset daily placed orders cache: {e}")
+                
                 # Regenerate daily SMC session token
                 try:
                     from smc_session_manager import refresh_smc_session

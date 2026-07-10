@@ -27,6 +27,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 tracked_orders  = {}   # order_id → last known status
 daily_trades    = []   # completed trade records
 summary_sent    = False
+auto_off_done   = False
 
 def load_tracked_orders():
     global tracked_orders
@@ -565,9 +566,60 @@ def is_trading_day():
         return False
     return True
 
+def auto_square_off_all():
+    """Cancel all pending breakout orders and square off all active positions at 3:45 PM IST."""
+    logger.info("[Tracker] Running end-of-day Auto Square-off at 3:45 PM IST...")
+    from upstox_broker import cancel_order, get_ltp, place_regular_order
+    
+    load_tracked_orders()
+    for order_id, tracked in list(tracked_orders.items()):
+        symbol = tracked["symbol"]
+        status = tracked["status"]
+        qty = tracked["quantity"]
+        tx_type = tracked["transaction_type"]
+        sl_order_id = tracked.get("sl_order_id")
+
+        if status == "PENDING":
+            # Cancel pending breakout order
+            logger.info(f"[Tracker] Cancelling pending breakout order for {symbol}: {order_id}")
+            try:
+                cancel_order(order_id)
+                tracked["status"] = "CANCELLED"
+            except Exception as e:
+                logger.error(f"[Tracker] Failed to cancel pending order {order_id}: {e}")
+                
+        elif status == "ACTIVE":
+            # Square off active position
+            logger.info(f"[Tracker] Squaring off active position for {symbol}: {qty} shares")
+            # Cancel SL GTT order first
+            if sl_order_id:
+                try:
+                    cancel_order(sl_order_id)
+                except Exception as e:
+                    logger.error(f"[Tracker] Failed to cancel SL order {sl_order_id}: {e}")
+            
+            # Place market exit order
+            exit_action = "SELL" if tx_type == "BUY" else "BUY"
+            try:
+                # For SMC, MARKET orders are not allowed on API, so place a limit order slightly off LTP
+                ltp = get_ltp(symbol)
+                if ltp > 0:
+                    exit_limit = round(ltp - 0.15, 2) if exit_action == "SELL" else round(ltp + 0.15, 2)
+                    res = place_regular_order(symbol, exit_action, qty, "LIMIT", exit_limit)
+                    if res["success"]:
+                        tracked["status"] = "COMPLETE"
+                        tracked["exit_price"] = ltp
+                        logger.info(f"[Tracker] Squared off active position for {symbol} successfully.")
+                    else:
+                        logger.error(f"[Tracker] Square off order failed for {symbol}: {res.get('message')}")
+            except Exception as e:
+                logger.error(f"[Tracker] Exception during square off of {symbol}: {e}")
+                
+    save_tracked_orders()
+
 def run_tracker():
     """Main tracker loop — runs with fast polling during market hours."""
-    global summary_sent
+    global summary_sent, auto_off_done
     logger.info("[Tracker] Started order tracking")
     load_daily_log()
     load_tracked_orders()
@@ -584,9 +636,17 @@ def run_tracker():
                     summary_sent = True
                     logger.info("[Tracker] Weekend/Holiday detected, skipping daily summary alert.")
 
-            # Reset summary flag at midnight
+            # Run daily auto-square off at 3:45 PM
+            if now.hour == 15 and now.minute >= 45 and not auto_off_done:
+                if is_trading_day():
+                    auto_square_off_all()
+                    send_trade_message("🕒 <b>SYSTEM: 3:45 PM Auto Square-off Completed</b>\n\nAll pending breakout orders cancelled and active positions squared off.")
+                auto_off_done = True
+
+            # Reset flags at midnight
             if now.hour == 0 and now.minute == 0:
                 summary_sent = False
+                auto_off_done = False
                 daily_trades.clear()
 
             # Check orders during and after market hours
