@@ -69,6 +69,11 @@ export default function SimulationPage() {
 
   // Adjust orders dynamically based on category settings
   const adjustedOrders = orders.map(o => {
+    // If this is a futures plan, bypass client-side scaling and use the exact replayed/tracked quantities
+    if (o.plan && o.plan.startsWith("futures")) {
+      return o;
+    }
+
     const isBtc = o.symbol === "BTCUSD";
     const isUs = ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol);
     const categorySettings = isBtc ? settings.crypto : (isUs ? settings.us : settings.indian);
@@ -145,12 +150,32 @@ export default function SimulationPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-4xl font-bold text-white tracking-tight font-display mb-2 flex items-center gap-3">
-            Indian Equity Simulation <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
+            {selectedPlan === "basic" && "Indian Cash Equity Simulation"}
+            {selectedPlan === "futures_same" && "Indian Futures (Same Basket) Sim"}
+            {selectedPlan === "futures_selected" && "Indian Futures (Optimized Top 5) Sim"}
+            <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
           </h1>
-          <p className="text-slate-400">Real-time simulated dry-run execution tracker and bracket progress.</p>
+          <p className="text-slate-400">
+            {selectedPlan === "basic" && "Simulated Cash Equity dry-run tracking (₹1L exposure per trade)."}
+            {selectedPlan === "futures_same" && "Simulated Futures tracking for current basket (2 Lots, ₹25/lot brokerage)."}
+            {selectedPlan === "futures_selected" && "Simulated Futures tracking for optimized Top 5 basket (2 Lots, ₹25/lot brokerage)."}
+          </p>
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Type:</span>
+            <select 
+              value={selectedPlan}
+              onChange={(e) => setSelectedPlan(e.target.value)}
+              className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[210px] appearance-none cursor-pointer"
+            >
+              <option value="basic">1. Cash Equity (Current)</option>
+              <option value="futures_same">2. Futures of Same Basket</option>
+              <option value="futures_selected">3. Futures Optimized Basket</option>
+            </select>
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date:</span>
             <select 

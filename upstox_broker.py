@@ -167,8 +167,8 @@ def place_limit_buy(symbol: str, price: float, quantity: int = None) -> dict:
         "product_type": "INTRADAY",
         "quantity": str(qty),
         "disclose_quantity": "0",
-        "price": f"{round(limit_price / 0.05) * 0.05:.2f}",
-        "trigger_price": f"{round(trigger_price / 0.05) * 0.05:.2f}",
+        "price": f"{round(limit_price / tick) * tick:.2f}",
+        "trigger_price": f"{round(trigger_price / tick) * tick:.2f}",
         "stop_loss_price": "0",
         "trailing_stop_loss": "0",
         "validity": "DAY",
@@ -216,8 +216,8 @@ def place_limit_sell(symbol: str, price: float, quantity: int = None) -> dict:
         "product_type": "INTRADAY",
         "quantity": str(qty),
         "disclose_quantity": "0",
-        "price": f"{round(limit_price / 0.05) * 0.05:.2f}",
-        "trigger_price": f"{round(trigger_price / 0.05) * 0.05:.2f}",
+        "price": f"{round(limit_price / tick) * tick:.2f}",
+        "trigger_price": f"{round(trigger_price / tick) * tick:.2f}",
         "stop_loss_price": "0",
         "trailing_stop_loss": "0",
         "validity": "DAY",
@@ -267,8 +267,8 @@ def place_gtt_oco(symbol: str, current_price: float, quantity: int,
         "product_type": "INTRADAY",
         "quantity": str(quantity),
         "disclose_quantity": "0",
-        "price": f"{round(limit_price / 0.05) * 0.05:.2f}",
-        "trigger_price": f"{round(stop_loss_price / 0.05) * 0.05:.2f}",
+        "price": f"{round(limit_price / tick) * tick:.2f}",
+        "trigger_price": f"{round(stop_loss_price / tick) * tick:.2f}",
         "stop_loss_price": "0",
         "trailing_stop_loss": "0",
         "validity": "DAY",
@@ -315,6 +315,7 @@ def place_regular_order(symbol: str, action: str, quantity: int, order_type: str
     """
     inst_token = get_instrument_key(symbol)
     headers = get_smc_headers()
+    tick = get_tick_size(symbol)
     
     payload = {
         "action": action.upper(),
@@ -324,7 +325,7 @@ def place_regular_order(symbol: str, action: str, quantity: int, order_type: str
         "product_type": "INTRADAY",
         "quantity": str(quantity),
         "disclose_quantity": "0",
-        "price": f"{round(price / 0.05) * 0.05:.2f}" if order_type.upper() == "LIMIT" else "0",
+        "price": f"{round(price / tick) * tick:.2f}" if order_type.upper() == "LIMIT" else "0",
         "trigger_price": "0",
         "stop_loss_price": "0",
         "trailing_stop_loss": "0",

@@ -13,6 +13,21 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 SIGNALS_LOG = "signals.json"
 SIM_LOG = "simulated_orders.json"
 
+LOT_SIZES = {
+    "TATASTEEL": 5500,
+    "DLF": 1650,
+    "HAVELLS": 500,
+    "BHEL": 5250,
+    "ADANIENSOL": 250,
+    "PFC": 6250,
+    "TATACHEM": 550,
+    "ADANIPORTS": 650
+}
+
+# Define Baskets
+CURRENT_BASKET = ["TATASTEEL", "DLF", "HAVELLS", "BHEL", "ADANIENSOL"]
+OPTIMIZED_BASKET = ["PFC", "BHEL", "HAVELLS", "TATACHEM", "ADANIPORTS"]
+
 def download_yf_clean(ticker, interval="1m", range_str="1d"):
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval={interval}&range={range_str}"
@@ -61,43 +76,13 @@ def download_yf_clean(ticker, interval="1m", range_str="1d"):
         logging.error(f"[YahooFinance Clean] Error downloading {ticker}: {e}")
         return pd.DataFrame()
 
-def get_sizing_config(symbol):
-    global_capital, global_lot_size = None, None
-    settings_path = "simulation_settings.json"
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, "r") as f:
-                settings = json.load(f)
-                category = "indian"
-                cat_settings = settings.get(category, {})
-                global_capital = float(cat_settings.get("capital", 10000.0))
-                global_lot_size = float(cat_settings.get("lot_size", 0.0))
-        except Exception:
-            pass
-
-    path = "instrument_configs.json"
-    if os.path.exists(path):
-        try:
-            with open(path, "r") as f:
-                configs = json.load(f)
-                if symbol in configs:
-                    cfg = configs[symbol]
-                    mode_cfg = cfg.get("sim", {})
-                    capital = mode_cfg.get("capital")
-                    lot_size = mode_cfg.get("lot_size")
-                    ret_capital = float(capital) if capital is not None else (global_capital if global_capital is not None else 10000.0)
-                    ret_lot_size = float(lot_size) if lot_size is not None else (global_lot_size if global_lot_size is not None else 0.0)
-                    return ret_capital, ret_lot_size
-        except Exception:
-            pass
-    if global_capital is not None and global_lot_size is not None:
-        return global_capital, global_lot_size
-    return 10000.0, 0.0
-
-def calculate_quantity(symbol, entry_price):
-    capital, lot_size = get_sizing_config(symbol)
-    if lot_size > 0:
-        return lot_size
+def calculate_quantity(symbol, entry_price, plan):
+    # If futures, use 2 lots
+    if plan.startswith("futures"):
+        return LOT_SIZES.get(symbol, 100) * 2
+        
+    # For basic Cash Equity, default to 1 Lakh capital per trade
+    capital = 100000.0
     return max(1, int(capital / entry_price))
 
 def run_simulation_tracking():
@@ -138,66 +123,74 @@ def run_simulation_tracking():
             # Filter for today's signals
             today_signals = [s for s in signals if s.get("candle_date") == today_str]
 
-            # Ingest new signals
+            # Ingest new signals for each applicable plan
             updated = False
             for sig in today_signals:
                 symbol = sig.get("instrument")
                 candle_time = sig.get("candle_time")
                 
-                # Check if already exists in Sim
-                exists = False
-                for order in sim_orders:
-                    if order.get("symbol") == symbol and order.get("date") == today_str:
-                        exists = True
-                        break
+                # Determine which plans apply to this symbol
+                plans_to_add = []
+                if symbol in CURRENT_BASKET:
+                    plans_to_add.append("basic")         # Type 1: Cash Equity
+                    plans_to_add.append("futures_same")   # Type 2: Futures of Same
+                if symbol in OPTIMIZED_BASKET:
+                    plans_to_add.append("futures_selected") # Type 3: Futures of Selection
+                
+                for plan in plans_to_add:
+                    # Check if already exists in Sim
+                    exists = False
+                    for order in sim_orders:
+                        if (order.get("symbol") == symbol and 
+                            order.get("date") == today_str and 
+                            order.get("plan") == plan):
+                            exists = True
+                            break
+                            
+                    if not exists:
+                        high = sig.get("high")
+                        low = sig.get("low")
                         
-                if not exists:
-                    high = sig.get("high")
-                    low = sig.get("low")
-                    
-                    if high and low:
-                        # Indian equities tick is always 0.05
-                        tick = 0.05
-                        
-                        buy_entry = round(high + tick, 2)
-                        sell_entry = round(low - tick, 2)
-                        
-                        # Stop loss at 1% of entry price
-                        buy_stop = round(buy_entry * 0.99, 2)
-                        sell_stop = round(sell_entry * 1.01, 2)
-                        
-                        # Target at 1% of entry price
-                        buy_target = round(buy_entry * 1.01, 2)
-                        sell_target = round(sell_entry * 0.99, 2)
-                        
-                        new_order = {
-                            "symbol": symbol,
-                            "date": today_str,
-                            "time": candle_time,
-                            "plan": "basic",
-                            "buy_entry": buy_entry,
-                            "buy_target": buy_target,
-                            "buy_stop_loss": buy_stop,
-                            "buy_qty": calculate_quantity(symbol, buy_entry),
-                            "sell_entry": sell_entry,
-                            "sell_target": sell_target,
-                            "sell_stop_loss": sell_stop,
-                            "sell_qty": calculate_quantity(symbol, sell_entry),
-                            "status": "PENDING",
-                            "active_leg": None,
-                            "entry_price": None,
-                            "exit_price": None,
-                            "entry_time": None,
-                            "exit_time": None,
-                            "pnl": 0.0,
-                            "ltp": float(sig.get("price", buy_entry)),
-                            "buy_stop_loss_original": buy_stop,
-                            "sell_stop_loss_original": sell_stop,
-                            "is_sar": False
-                        }
-                        sim_orders.append(new_order)
-                        updated = True
-                        logging.info(f"[Indian Sim Tracker] Registered new simulation breakout bracket for {symbol}")
+                        if high and low:
+                            tick = 0.05
+                            
+                            buy_entry = round(high + tick, 2)
+                            sell_entry = round(low - tick, 2)
+                            
+                            # 1% targets and SL
+                            buy_stop = round(buy_entry * 0.99, 2)
+                            sell_stop = round(sell_entry * 1.01, 2)
+                            buy_target = round(buy_entry * 1.01, 2)
+                            sell_target = round(sell_entry * 0.99, 2)
+                            
+                            new_order = {
+                                "symbol": symbol,
+                                "date": today_str,
+                                "time": candle_time,
+                                "plan": plan,
+                                "buy_entry": buy_entry,
+                                "buy_target": buy_target,
+                                "buy_stop_loss": buy_stop,
+                                "buy_qty": calculate_quantity(symbol, buy_entry, plan),
+                                "sell_entry": sell_entry,
+                                "sell_target": sell_target,
+                                "sell_stop_loss": sell_stop,
+                                "sell_qty": calculate_quantity(symbol, sell_entry, plan),
+                                "status": "PENDING",
+                                "active_leg": None,
+                                "entry_price": None,
+                                "exit_price": None,
+                                "entry_time": None,
+                                "exit_time": None,
+                                "pnl": 0.0,
+                                "ltp": float(sig.get("price", buy_entry)),
+                                "buy_stop_loss_original": buy_stop,
+                                "sell_stop_loss_original": sell_stop,
+                                "is_sar": False
+                            }
+                            sim_orders.append(new_order)
+                            updated = True
+                            logging.info(f"[Indian Sim Tracker] Registered new simulation ({plan}) for {symbol}")
 
             all_symbols = set([o["symbol"] for o in sim_orders if o["status"] in ["PENDING", "PENDING_SAR", "ACTIVE"]])
             
@@ -219,6 +212,7 @@ def run_simulation_tracking():
             # Process each order
             for order in sim_orders:
                 sym = order["symbol"]
+                plan = order.get("plan", "basic")
                 if sym not in hist_data or hist_data[sym].empty:
                     continue
                     
@@ -247,27 +241,27 @@ def run_simulation_tracking():
                             order["entry_price"] = order["buy_entry"]
                             order["entry_time"] = current_iso
                             updated = True
-                            logging.info(f"[Indian Sim Tracker] [{sym}] BUY ENTRY triggered at {order['buy_entry']}")
+                            logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] BUY ENTRY triggered at {order['buy_entry']}")
                         elif c_low <= order["sell_entry"]:
                             order["status"] = "ACTIVE"
                             order["active_leg"] = "SELL"
                             order["entry_price"] = order["sell_entry"]
                             order["entry_time"] = current_iso
                             updated = True
-                            logging.info(f"[Indian Sim Tracker] [{sym}] SELL ENTRY triggered at {order['sell_entry']}")
+                            logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] SELL ENTRY triggered at {order['sell_entry']}")
                     else:  # PENDING_SAR
                         if order["active_leg"] == "BUY" and c_high >= order["buy_entry"]:
                             order["status"] = "ACTIVE"
                             order["entry_price"] = order["buy_entry"]
                             order["entry_time"] = current_iso
                             updated = True
-                            logging.info(f"[Indian Sim Tracker] [{sym}] BUY SAR ENTRY triggered at {order['buy_entry']}")
+                            logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] BUY SAR ENTRY triggered at {order['buy_entry']}")
                         elif order["active_leg"] == "SELL" and c_low <= order["sell_entry"]:
                             order["status"] = "ACTIVE"
                             order["entry_price"] = order["sell_entry"]
                             order["entry_time"] = current_iso
                             updated = True
-                            logging.info(f"[Indian Sim Tracker] [{sym}] SELL SAR ENTRY triggered at {order['sell_entry']}")
+                            logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] SELL SAR ENTRY triggered at {order['sell_entry']}")
 
                 elif order["status"] == "ACTIVE":
                     entry = order["entry_price"]
@@ -281,17 +275,16 @@ def run_simulation_tracking():
                         pnl = (c_close - entry) * qty if order["active_leg"] == "BUY" else (entry - c_close) * qty
                         order["pnl"] = round(pnl, 2)
                         updated = True
-                        logging.info(f"[Indian Sim Tracker] [{sym}] Auto Squared-off at {c_close}")
+                        logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] Auto Squared-off at {c_close}")
                         continue
 
                     if order["active_leg"] == "BUY":
-                        # Update PnL
                         pnl = (c_close - entry) * qty
                         if order.get("pnl") != round(pnl, 2):
                             order["pnl"] = round(pnl, 2)
                             updated = True
                             
-                        # 1. Target check (1.0% target)
+                        # Target Check
                         if order.get("buy_target") is not None:
                             if c_high >= order["buy_target"]:
                                 order["status"] = "TARGET HIT"
@@ -300,10 +293,10 @@ def run_simulation_tracking():
                                 pnl = (order["buy_target"] - entry) * qty
                                 order["pnl"] = round(pnl, 2)
                                 updated = True
-                                logging.info(f"[Indian Sim Tracker] [{sym}] TARGET HIT! PnL: {order['pnl']}")
+                                logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] TARGET HIT! PnL: {order['pnl']}")
                                 continue
         
-                        # 2. Stop Loss check
+                        # Stop Loss Check
                         if c_low <= order["buy_stop_loss"]:
                             order["status"] = "SL HIT"
                             order["exit_price"] = order["buy_stop_loss"]
@@ -311,9 +304,9 @@ def run_simulation_tracking():
                             pnl = (order["buy_stop_loss"] - entry) * qty
                             order["pnl"] = round(pnl, 2)
                             updated = True
-                            logging.info(f"[Indian Sim Tracker] [{sym}] SL HIT! PnL: {order['pnl']}")
+                            logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] SL HIT! PnL: {order['pnl']}")
         
-                            # Martingale SAR (Only on loss and original SL, and only if not already a SAR trade)
+                            # Martingale SAR Reversal
                             is_original_sl = order["buy_stop_loss"] == order["buy_stop_loss_original"]
                             if pnl < 0 and is_original_sl and not order.get("is_sar", False):
                                 sar_qty = int(qty * 2)
@@ -322,7 +315,7 @@ def run_simulation_tracking():
                                     "symbol": sym,
                                     "date": today_str,
                                     "time": now.strftime("%H:%M"),
-                                    "plan": "basic",
+                                    "plan": plan,
                                     "buy_entry": order["buy_entry"],
                                     "buy_target": round(order["buy_entry"] * 1.01, 2),
                                     "buy_stop_loss": round(order["buy_entry"] * 0.99, 2),
@@ -344,16 +337,15 @@ def run_simulation_tracking():
                                     "sell_stop_loss_original": round(sar_entry * 1.01, 2)
                                 }
                                 sim_orders.append(new_sar)
-                                logging.info(f"[Indian Sim Tracker] [{sym}] Queued SAR Reversal SELL for {sar_qty} qty at {sar_entry}")
+                                logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] Queued SAR Reversal SELL for {sar_qty} qty at {sar_entry}")
         
                     elif order["active_leg"] == "SELL":
-                        # Update PnL
                         pnl = (entry - c_close) * qty
                         if order.get("pnl") != round(pnl, 2):
                             order["pnl"] = round(pnl, 2)
                             updated = True
                             
-                        # 1. Target check (1.0% target)
+                        # Target Check
                         if order.get("sell_target") is not None:
                             if c_low <= order["sell_target"]:
                                 order["status"] = "TARGET HIT"
@@ -362,10 +354,10 @@ def run_simulation_tracking():
                                 pnl = (entry - order["sell_target"]) * qty
                                 order["pnl"] = round(pnl, 2)
                                 updated = True
-                                logging.info(f"[Indian Sim Tracker] [{sym}] TARGET HIT! PnL: {order['pnl']}")
+                                logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] TARGET HIT! PnL: {order['pnl']}")
                                 continue
         
-                        # 2. Stop Loss check
+                        # Stop Loss Check
                         if c_high >= order["sell_stop_loss"]:
                             order["status"] = "SL HIT"
                             order["exit_price"] = order["sell_stop_loss"]
@@ -373,9 +365,9 @@ def run_simulation_tracking():
                             pnl = (entry - order["sell_stop_loss"]) * qty
                             order["pnl"] = round(pnl, 2)
                             updated = True
-                            logging.info(f"[Indian Sim Tracker] [{sym}] SL HIT! PnL: {order['pnl']}")
+                            logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] SL HIT! PnL: {order['pnl']}")
         
-                            # Martingale SAR (Only on loss and original SL, and only if not already a SAR trade)
+                            # Martingale SAR Reversal
                             is_original_sl = order["sell_stop_loss"] == order["sell_stop_loss_original"]
                             if pnl < 0 and is_original_sl and not order.get("is_sar", False):
                                 sar_qty = int(qty * 2)
@@ -384,7 +376,7 @@ def run_simulation_tracking():
                                     "symbol": sym,
                                     "date": today_str,
                                     "time": now.strftime("%H:%M"),
-                                    "plan": "basic",
+                                    "plan": plan,
                                     "buy_entry": sar_entry,
                                     "buy_target": round(sar_entry * 1.01, 2),
                                     "buy_stop_loss": round(sar_entry * 0.99, 2),
@@ -406,7 +398,7 @@ def run_simulation_tracking():
                                     "sell_stop_loss_original": round(order["sell_entry"] * 1.01, 2)
                                 }
                                 sim_orders.append(new_sar)
-                                logging.info(f"[Indian Sim Tracker] [{sym}] Queued SAR Reversal BUY for {sar_qty} qty at {sar_entry}")
+                                logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] Queued SAR Reversal BUY for {sar_qty} qty at {sar_entry}")
 
             # Save if updated
             if updated:

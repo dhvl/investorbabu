@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/Users/apple/Documents/gemini/antigravity/scratch/investorbabu/main.py", line 37, in <module>
+    from inside_bar_helper import get_first_inside_bar_of_day, get_timezone
+  File "/Users/apple/Documents/gemini/antigravity/scratch/investorbabu/inside_bar_helper.py", line 1, in <module>
+    import yfinance as yf
+ModuleNotFoundError: No module named 'yfinance'
