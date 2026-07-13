@@ -1,2 +1,58 @@
 2026-07-12 00:39:01,019 [INFO] Starting TradingView Email Alert Poller Service...
 2026-07-12 00:39:01,019 [INFO] Starting TradingView Email Alert Poller Service...
+2026-07-12 09:24:17,310 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 09:24:17,310 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 09:31:53,182 [ERROR] [US Bot (us.bot)] Connection or authentication error: command: SELECT => socket error: EOF
+2026-07-12 09:31:53,182 [ERROR] [US Bot (us.bot)] Connection or authentication error: command: SELECT => socket error: EOF
+2026-07-12 10:06:13,575 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 10:06:13,575 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 10:27:59,976 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 10:27:59,976 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 11:32:10,324 [ERROR] [US Bot (us.bot)] Connection or authentication error: command: SEARCH => socket error: EOF
+2026-07-12 11:32:10,324 [ERROR] [US Bot (us.bot)] Connection or authentication error: command: SEARCH => socket error: EOF
+2026-07-12 11:53:21,954 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 11:53:21,954 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 12:05:40,045 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 12:05:40,045 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 13:30:18,170 [ERROR] [US Bot (us.bot)] Connection or authentication error: command: CAPABILITY => socket error: EOF
+2026-07-12 13:30:18,170 [ERROR] [US Bot (us.bot)] Connection or authentication error: command: CAPABILITY => socket error: EOF
+2026-07-12 13:41:04,241 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 13:41:04,241 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 14:00:54,084 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 14:00:54,084 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 14:54:11,819 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 14:54:11,819 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 16:23:49,866 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 16:23:49,866 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 16:51:20,686 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 16:51:20,686 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 17:05:52,905 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 17:05:52,905 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 17:37:02,808 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 17:37:02,808 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 19:16:50,601 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 19:16:50,601 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 22:43:01,310 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 22:43:01,310 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 22:58:09,954 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-12 22:58:09,954 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 00:02:38,005 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 00:02:38,005 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 00:38:52,681 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 00:38:52,681 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 00:53:25,219 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 00:53:25,219 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 01:27:19,792 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 01:27:19,792 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 03:47:14,686 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 03:47:14,686 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 05:40:39,059 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 05:40:39,059 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 06:00:18,007 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 06:00:18,007 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 07:39:38,559 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 07:39:38,559 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 07:55:46,036 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 07:55:46,036 [ERROR] [Indian Bot (in.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 08:56:46,191 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
+2026-07-13 08:56:46,191 [ERROR] [US Bot (us.bot)] Connection or authentication error: The read operation timed out
