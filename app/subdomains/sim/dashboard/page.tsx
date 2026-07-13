@@ -129,19 +129,32 @@ export default function SimulationPage() {
   const capitalBySymbol = filteredOrders.reduce((acc, o) => {
     const qty = o.active_leg === "BUY" ? o.buy_qty : (o.active_leg === "SELL" ? o.sell_qty : Math.max(o.buy_qty || 0, o.sell_qty || 0));
     const price = o.entry_price || o.buy_entry || 0; 
-    const cap = price * qty;
+    let cap = price * qty;
+    
+    // If this is a futures or dynamic volume plan, capital is the actual exchange margin (approx 20% of contract value)
+    if (o.plan && (o.plan.startsWith("futures") || o.plan === "dynamic_volume")) {
+      cap = cap * 0.20; // 20% margin
+    }
+    
     if (!acc[o.symbol] || cap > acc[o.symbol]) {
       acc[o.symbol] = cap;
     }
     return acc;
   }, {} as Record<string, number>);
 
-  const peakTotalCapital = Object.keys(capitalBySymbol).length * (settings?.indian?.capital ?? 10000);
+  const peakTotalCapital = Object.keys(capitalBySymbol).length > 0
+    ? Object.values(capitalBySymbol).reduce((a, b) => a + b, 0)
+    : (settings?.indian?.capital ?? 100000);
+    
   const overallRoi = peakTotalCapital > 0 ? (totalPnL / peakTotalCapital) * 100 : 0;
 
   const totalCapitalUsed = activePositions.reduce((acc, o) => {
     const qty = o.active_leg === "BUY" ? o.buy_qty : o.sell_qty;
-    return acc + ((o.entry_price || 0) * qty);
+    let cap = (o.entry_price || 0) * qty;
+    if (o.plan && (o.plan.startsWith("futures") || o.plan === "dynamic_volume")) {
+      cap = cap * 0.20;
+    }
+    return acc + cap;
   }, 0);
 
   return (
