@@ -525,7 +525,7 @@ export default function SimulationPage() {
                                         )}
                                       </td>
                                       <td className="px-6 py-4 text-xs text-slate-400">
-                                        {o.is_sar && o.active_leg === "SELL" ? (
+                                        {(o.is_sar && o.active_leg === "SELL") || o.buy_entry >= 999999 ? (
                                           <span className="text-slate-600">—</span>
                                         ) : (
                                           <>
@@ -538,7 +538,7 @@ export default function SimulationPage() {
                                         )}
                                       </td>
                                       <td className="px-6 py-4 text-xs text-slate-400">
-                                        {o.is_sar && o.active_leg === "BUY" ? (
+                                        {(o.is_sar && o.active_leg === "BUY") || o.sell_entry <= 0 ? (
                                           <span className="text-slate-600">—</span>
                                         ) : (
                                           <>
