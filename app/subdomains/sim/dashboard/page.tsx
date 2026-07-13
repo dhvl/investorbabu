@@ -163,10 +163,12 @@ export default function SimulationPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-4xl font-bold text-white tracking-tight font-display mb-2 flex items-center gap-3">
-            {selectedPlan === "basic" && "Indian Cash Equity Simulation"}
+             {selectedPlan === "basic" && "Indian Cash Equity Simulation"}
             {selectedPlan === "futures_same" && "Indian Futures (Same Basket) Sim"}
             {selectedPlan === "futures_selected" && "Indian Futures (Optimized Top 5) Sim"}
             {selectedPlan === "dynamic_volume" && "Indian Futures (Dynamic Volume) Sim"}
+            {selectedPlan === "trend_following_equity" && "Indian Trend-Following Cash Equity"}
+            {selectedPlan === "trend_following_futures" && "Indian Trend-Following Futures"}
             <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
           </h1>
           <p className="text-slate-400">
@@ -174,6 +176,8 @@ export default function SimulationPage() {
             {selectedPlan === "futures_same" && "Simulated Futures tracking for current basket (2 Lots, ₹25/lot brokerage)."}
             {selectedPlan === "futures_selected" && "Simulated Futures tracking for optimized Top 5 basket (2 Lots, ₹25/lot brokerage)."}
             {selectedPlan === "dynamic_volume" && "Simulated Futures tracking for daily pre-market volume surge leaders (2 Lots, ₹25/lot brokerage)."}
+            {selectedPlan === "trend_following_equity" && "Simulated Trend-Following Cash Equity with 0.40% targets (compounding up to 2 legs)."}
+            {selectedPlan === "trend_following_futures" && "Simulated Trend-Following Futures with 0.40% targets (compounding up to 2 legs)."}
           </p>
         </div>
 
@@ -189,6 +193,8 @@ export default function SimulationPage() {
               <option value="futures_same">2. Futures of Same Basket</option>
               <option value="futures_selected">3. Futures Optimized Basket</option>
               <option value="dynamic_volume">4. Dynamic Volume Basket</option>
+              <option value="trend_following_equity">5. Trend-Following Cash Equity</option>
+              <option value="trend_following_futures">6. Trend-Following Futures</option>
             </select>
           </div>
 
