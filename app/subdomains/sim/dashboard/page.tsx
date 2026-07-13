@@ -69,8 +69,8 @@ export default function SimulationPage() {
 
   // Adjust orders dynamically based on category settings
   const adjustedOrders = orders.map(o => {
-    // If this is a futures plan, bypass client-side scaling and use the exact replayed/tracked quantities
-    if (o.plan && o.plan.startsWith("futures")) {
+    // If this is a futures or dynamic volume plan, bypass client-side scaling and use the exact replayed/tracked quantities
+    if (o.plan && (o.plan.startsWith("futures") || o.plan === "dynamic_volume")) {
       return o;
     }
 
@@ -153,12 +153,14 @@ export default function SimulationPage() {
             {selectedPlan === "basic" && "Indian Cash Equity Simulation"}
             {selectedPlan === "futures_same" && "Indian Futures (Same Basket) Sim"}
             {selectedPlan === "futures_selected" && "Indian Futures (Optimized Top 5) Sim"}
+            {selectedPlan === "dynamic_volume" && "Indian Futures (Dynamic Volume) Sim"}
             <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
           </h1>
           <p className="text-slate-400">
             {selectedPlan === "basic" && "Simulated Cash Equity dry-run tracking (₹1L exposure per trade)."}
             {selectedPlan === "futures_same" && "Simulated Futures tracking for current basket (2 Lots, ₹25/lot brokerage)."}
             {selectedPlan === "futures_selected" && "Simulated Futures tracking for optimized Top 5 basket (2 Lots, ₹25/lot brokerage)."}
+            {selectedPlan === "dynamic_volume" && "Simulated Futures tracking for daily pre-market volume surge leaders (2 Lots, ₹25/lot brokerage)."}
           </p>
         </div>
 
@@ -173,6 +175,7 @@ export default function SimulationPage() {
               <option value="basic">1. Cash Equity (Current)</option>
               <option value="futures_same">2. Futures of Same Basket</option>
               <option value="futures_selected">3. Futures Optimized Basket</option>
+              <option value="dynamic_volume">4. Dynamic Volume Basket</option>
             </select>
           </div>
 
