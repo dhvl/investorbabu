@@ -534,6 +534,15 @@ def run_simulation_tracking():
                     
         except Exception as main_err:
             logging.error(f"[Indian Sim Tracker] Main loop error: {main_err}")
+            # Cooldown to avoid spamming Telegram (at most once every 30 minutes)
+            now_ts = time.time()
+            if not hasattr(run_simulation_tracking, "last_alert_time") or (now_ts - run_simulation_tracking.last_alert_time) > 1800:
+                run_simulation_tracking.last_alert_time = now_ts
+                try:
+                    from telegram_bot import send_admin_only_message
+                    send_admin_only_message(f"⚠️ <b>[Indian Sim Tracker] Loop Error Detected!</b>\nError: <code>{main_err}</code>")
+                except Exception as tg_err:
+                    logging.error(f"Failed to send Telegram alert: {tg_err}")
             
         time.sleep(10)
 
