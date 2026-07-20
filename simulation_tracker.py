@@ -21,7 +21,16 @@ LOT_SIZES = {
     "ADANIENSOL": 250,
     "PFC": 6250,
     "TATACHEM": 550,
-    "ADANIPORTS": 650
+    "ADANIPORTS": 650,
+    "TCS": 175,
+    "RELIANCE": 250,
+    "INFY": 400,
+    "HDFCBANK": 550,
+    "ICICIBANK": 700,
+    "SBIN": 1500,
+    "ITC": 1600,
+    "LT": 300,
+    "AXISBANK": 625
 }
 
 # Define Baskets
@@ -77,13 +86,98 @@ def download_yf_clean(ticker, interval="1m", range_str="1d"):
         return pd.DataFrame()
 
 def calculate_quantity(symbol, entry_price, plan):
-    # If futures, use 2 lots
-    if plan.startswith("futures"):
+    # If futures or dynamic volume, use 2 lots
+    if "futures" in plan or plan == "dynamic_volume":
         return LOT_SIZES.get(symbol, 100) * 2
+        
+    # If entry price is invalid (vetoed), return 0
+    if entry_price <= 0.0 or entry_price >= 999999.0:
+        return 0
         
     # For basic Cash Equity, default to 1 Lakh capital per trade
     capital = 100000.0
     return max(1, int(capital / entry_price))
+
+def spawn_second_trade(parent_order: dict, leg: str, trigger_time: str, sim_orders: list):
+    symbol = parent_order["symbol"]
+    plan = parent_order["plan"]
+    today_str = parent_order["date"]
+    
+    # 0.15% offset from target for the new entry
+    if leg == "BUY":
+        new_entry = round(parent_order["buy_target"] * 1.0015, 2)
+        new_tgt = round(new_entry * 1.004, 2)
+        new_sl = round(new_entry * 0.99, 2)
+        
+        buy_entry = new_entry
+        buy_target = new_tgt
+        buy_stop = new_sl
+        buy_qty = calculate_quantity(symbol, buy_entry, plan)
+        
+        sell_entry = 0.0 # Vetoed
+        sell_target = 0.0
+        sell_stop = 0.0
+        sell_qty = 0
+    else:
+        new_entry = round(parent_order["sell_target"] * 0.9985, 2)
+        new_tgt = round(new_entry * 0.996, 2)
+        new_sl = round(new_entry * 1.01, 2)
+        
+        sell_entry = new_entry
+        sell_target = new_tgt
+        sell_stop = new_sl
+        sell_qty = calculate_quantity(symbol, sell_entry, plan)
+        
+        buy_entry = 999999.0 # Vetoed
+        buy_target = 999999.0
+        buy_stop = 999999.0
+        buy_qty = 0
+        
+    new_order = {
+        "symbol": symbol,
+        "date": today_str,
+        "time": trigger_time.split("T")[1][:5] if "T" in trigger_time else "10:00",
+        "plan": plan,
+        "buy_entry": buy_entry,
+        "buy_target": buy_target,
+        "buy_stop_loss": buy_stop,
+        "buy_qty": buy_qty,
+        "sell_entry": sell_entry,
+        "sell_target": sell_target,
+        "sell_stop_loss": sell_stop,
+        "sell_qty": sell_qty,
+        "status": "PENDING",
+        "active_leg": None,
+        "entry_price": None,
+        "exit_price": None,
+        "entry_time": None,
+        "exit_time": None,
+        "pnl": 0.0,
+        "ltp": parent_order["ltp"],
+        "buy_stop_loss_original": buy_stop,
+        "sell_stop_loss_original": sell_stop,
+        "is_sar": False,
+        "is_second_trade": True
+    }
+    sim_orders.append(new_order)
+    logging.info(f"[Indian Sim Tracker] [{symbol} ({plan})] Spawned second trend-following trade at entry {new_entry} (leg: {leg})")
+
+def get_nifty_trend() -> float:
+    try:
+        import requests
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/^NSEI"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(url, headers=headers, timeout=10)
+        data = res.json()
+        result = data.get("chart", {}).get("result", [None])[0]
+        if result:
+            last_price = result["meta"]["regularMarketPrice"]
+            prev_close = result["meta"]["chartPreviousClose"]
+            if prev_close > 0:
+                return ((last_price - prev_close) / prev_close) * 100
+    except Exception as e:
+        logging.error(f"Error fetching Nifty trend for sim: {e}")
+    return 0.0
 
 def run_simulation_tracking():
     logging.info("[Indian Sim Tracker] Starting live Indian simulated trade tracking engine...")
@@ -123,6 +217,15 @@ def run_simulation_tracking():
             # Filter for today's signals
             today_signals = [s for s in signals if s.get("candle_date") == today_str]
 
+            # Load dynamic volume symbols for Type 4
+            dynamic_symbols = []
+            if os.path.exists("dynamic_symbols.json"):
+                try:
+                    with open("dynamic_symbols.json", "r") as f:
+                        dynamic_symbols = json.load(f)
+                except Exception as e:
+                    logging.error(f"[Indian Sim Tracker] Error loading dynamic symbols: {e}")
+
             # Ingest new signals for each applicable plan
             updated = False
             for sig in today_signals:
@@ -134,8 +237,12 @@ def run_simulation_tracking():
                 if symbol in CURRENT_BASKET:
                     plans_to_add.append("basic")         # Type 1: Cash Equity
                     plans_to_add.append("futures_same")   # Type 2: Futures of Same
+                    plans_to_add.append("trend_following_equity") # Type 5: Trend-Following Cash Equity
+                    plans_to_add.append("trend_following_futures") # Type 6: Trend-Following Futures
                 if symbol in OPTIMIZED_BASKET:
                     plans_to_add.append("futures_selected") # Type 3: Futures of Selection
+                if symbol in dynamic_symbols:
+                    plans_to_add.append("dynamic_volume")   # Type 4: Dynamic Volume Basket
                 
                 for plan in plans_to_add:
                     # Check if already exists in Sim
@@ -157,11 +264,23 @@ def run_simulation_tracking():
                             buy_entry = round(high + tick, 2)
                             sell_entry = round(low - tick, 2)
                             
-                            # 1% targets and SL
+                            # Apply Nifty Veto filter for F&O plans (Type 2, 3, 4)
+                            if plan != "basic":
+                                nifty_trend = get_nifty_trend()
+                                if nifty_trend > 0.2:
+                                    sell_entry = 0.0 # Veto short leg
+                                    logging.info(f"[Indian Sim Tracker] {symbol} ({plan}): Nifty is +{nifty_trend:.2f}%. Vetoed Short leg (sell_entry=0.0)")
+                                elif nifty_trend < -0.2:
+                                    buy_entry = 999999.0 # Veto long leg
+                                    logging.info(f"[Indian Sim Tracker] {symbol} ({plan}): Nifty is {nifty_trend:.2f}%. Vetoed Long leg (buy_entry=999999.0)")
+                            
+                            # Targets & Stop Loss (0.4% Target for all plans)
+                            target_pct = 0.004
+                            
                             buy_stop = round(buy_entry * 0.99, 2)
                             sell_stop = round(sell_entry * 1.01, 2)
-                            buy_target = round(buy_entry * 1.01, 2)
-                            sell_target = round(sell_entry * 0.99, 2)
+                            buy_target = round(buy_entry * (1.0 + target_pct), 2)
+                            sell_target = round(sell_entry * (1.0 - target_pct), 2)
                             
                             new_order = {
                                 "symbol": symbol,
@@ -294,6 +413,10 @@ def run_simulation_tracking():
                                 order["pnl"] = round(pnl, 2)
                                 updated = True
                                 logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] TARGET HIT! PnL: {order['pnl']}")
+                                
+                                # Spawn second trade for Trend-Following plans if it is the first trade
+                                if plan in ["trend_following_equity", "trend_following_futures"] and not order.get("is_second_trade", False):
+                                    spawn_second_trade(order, "BUY", current_iso, sim_orders)
                                 continue
         
                         # Stop Loss Check
@@ -308,7 +431,7 @@ def run_simulation_tracking():
         
                             # Martingale SAR Reversal
                             is_original_sl = order["buy_stop_loss"] == order["buy_stop_loss_original"]
-                            if pnl < 0 and is_original_sl and not order.get("is_sar", False):
+                            if pnl < 0 and is_original_sl and not order.get("is_sar", False) and plan == "basic":
                                 sar_qty = int(qty * 2)
                                 sar_entry = order["sell_entry"]
                                 new_sar = {
@@ -355,6 +478,10 @@ def run_simulation_tracking():
                                 order["pnl"] = round(pnl, 2)
                                 updated = True
                                 logging.info(f"[Indian Sim Tracker] [{sym} ({plan})] TARGET HIT! PnL: {order['pnl']}")
+                                
+                                # Spawn second trade for Trend-Following plans if it is the first trade
+                                if plan in ["trend_following_equity", "trend_following_futures"] and not order.get("is_second_trade", False):
+                                    spawn_second_trade(order, "SELL", current_iso, sim_orders)
                                 continue
         
                         # Stop Loss Check
@@ -369,7 +496,7 @@ def run_simulation_tracking():
         
                             # Martingale SAR Reversal
                             is_original_sl = order["sell_stop_loss"] == order["sell_stop_loss_original"]
-                            if pnl < 0 and is_original_sl and not order.get("is_sar", False):
+                            if pnl < 0 and is_original_sl and not order.get("is_sar", False) and plan == "basic":
                                 sar_qty = int(qty * 2)
                                 sar_entry = order["buy_entry"]
                                 new_sar = {
