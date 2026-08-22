@@ -239,6 +239,9 @@ def run_simulation_tracking():
                     plans_to_add.append("futures_same")   # Type 2: Futures of Same
                     plans_to_add.append("trend_following_equity") # Type 5: Trend-Following Cash Equity
                     plans_to_add.append("trend_following_futures") # Type 6: Trend-Following Futures
+                    plans_to_add.append("original_live") # Type 7: Original 1.0% Target & Martingale SAR Cash Equity
+                    plans_to_add.append("original_futures") # Type 8: Original 1.0% Target & Martingale SAR Futures
+                    plans_to_add.append("original_1pct") # Type 9: Original 1.0% Target & Martingale SAR Universal
                 if symbol in OPTIMIZED_BASKET:
                     plans_to_add.append("futures_selected") # Type 3: Futures of Selection
                 if symbol in dynamic_symbols:
@@ -264,8 +267,8 @@ def run_simulation_tracking():
                             buy_entry = round(high + tick, 2)
                             sell_entry = round(low - tick, 2)
                             
-                            # Apply Nifty Veto filter for F&O plans (Type 2, 3, 4)
-                            if plan != "basic":
+                            # Apply Nifty Veto filter for F&O and Trend-Following plans
+                            if plan not in ["basic", "original_live", "original_futures", "original_1pct"]:
                                 nifty_trend = get_nifty_trend()
                                 if nifty_trend > 0.2:
                                     sell_entry = 0.0 # Veto short leg
@@ -274,8 +277,8 @@ def run_simulation_tracking():
                                     buy_entry = 999999.0 # Veto long leg
                                     logging.info(f"[Indian Sim Tracker] {symbol} ({plan}): Nifty is {nifty_trend:.2f}%. Vetoed Long leg (buy_entry=999999.0)")
                             
-                            # Targets & Stop Loss (0.4% Target for all plans)
-                            target_pct = 0.004
+                            # Targets & Stop Loss (1.0% Target for original_live/original_futures/original_1pct, 0.4% for all other plans)
+                            target_pct = 0.01 if plan in ["original_live", "original_futures", "original_1pct"] else 0.004
                             
                             buy_stop = round(buy_entry * 0.99, 2)
                             sell_stop = round(sell_entry * 1.01, 2)
@@ -431,7 +434,7 @@ def run_simulation_tracking():
         
                             # Martingale SAR Reversal
                             is_original_sl = order["buy_stop_loss"] == order["buy_stop_loss_original"]
-                            if pnl < 0 and is_original_sl and not order.get("is_sar", False) and plan == "basic":
+                            if pnl < 0 and is_original_sl and not order.get("is_sar", False) and plan in ["basic", "original_live", "original_futures", "original_1pct"]:
                                 sar_qty = int(qty * 2)
                                 sar_entry = order["sell_entry"]
                                 new_sar = {
@@ -440,11 +443,11 @@ def run_simulation_tracking():
                                     "time": now.strftime("%H:%M"),
                                     "plan": plan,
                                     "buy_entry": order["buy_entry"],
-                                    "buy_target": round(order["buy_entry"] * 1.01, 2),
+                                    "buy_target": round(order["buy_entry"] * (1.01 if plan in ["original_live", "original_futures", "original_1pct"] else 1.004), 2),
                                     "buy_stop_loss": round(order["buy_entry"] * 0.99, 2),
                                     "buy_qty": sar_qty,
                                     "sell_entry": sar_entry,
-                                    "sell_target": round(sar_entry * 0.99, 2),
+                                    "sell_target": round(sar_entry * (0.99 if plan in ["original_live", "original_futures", "original_1pct"] else 0.996), 2),
                                     "sell_stop_loss": round(sar_entry * 1.01, 2),
                                     "sell_qty": sar_qty,
                                     "status": "PENDING_SAR",
@@ -496,7 +499,7 @@ def run_simulation_tracking():
         
                             # Martingale SAR Reversal
                             is_original_sl = order["sell_stop_loss"] == order["sell_stop_loss_original"]
-                            if pnl < 0 and is_original_sl and not order.get("is_sar", False) and plan == "basic":
+                            if pnl < 0 and is_original_sl and not order.get("is_sar", False) and plan in ["basic", "original_live", "original_futures", "original_1pct"]:
                                 sar_qty = int(qty * 2)
                                 sar_entry = order["buy_entry"]
                                 new_sar = {
@@ -505,11 +508,11 @@ def run_simulation_tracking():
                                     "time": now.strftime("%H:%M"),
                                     "plan": plan,
                                     "buy_entry": sar_entry,
-                                    "buy_target": round(sar_entry * 1.01, 2),
+                                    "buy_target": round(sar_entry * (1.01 if plan in ["original_live", "original_futures", "original_1pct"] else 1.004), 2),
                                     "buy_stop_loss": round(sar_entry * 0.99, 2),
                                     "buy_qty": sar_qty,
                                     "sell_entry": order["sell_entry"],
-                                    "sell_target": round(order["sell_entry"] * 0.99, 2),
+                                    "sell_target": round(order["sell_entry"] * (0.99 if plan in ["original_live", "original_futures", "original_1pct"] else 0.996), 2),
                                     "sell_stop_loss": round(order["sell_entry"] * 1.01, 2),
                                     "sell_qty": sar_qty,
                                     "status": "PENDING_SAR",

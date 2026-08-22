@@ -171,6 +171,7 @@ export default function SimulationPage() {
             {selectedPlan === "trend_following_futures" && "Indian Trend-Following Futures"}
             {selectedPlan === "original_live" && "Indian Original Live Strategy"}
             {selectedPlan === "original_futures" && "Indian Original Futures Strategy"}
+            {selectedPlan === "original_1pct" && "Original 1.0% Strategy (Indian, US & Crypto)"}
             <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
           </h1>
           <p className="text-slate-400">
@@ -182,6 +183,7 @@ export default function SimulationPage() {
             {selectedPlan === "trend_following_futures" && "Simulated Trend-Following Futures with 0.40% targets (compounding up to 2 legs)."}
             {selectedPlan === "original_live" && "Simulated Original Live Strategy (1.00% target, Martingale SAR active, No Nifty Veto)."}
             {selectedPlan === "original_futures" && "Simulated Original Futures Strategy (1.00% target, Martingale SAR active, No Nifty Veto, 2 Lots)."}
+            {selectedPlan === "original_1pct" && "Unified Original Strategy with 1.00% Target, 1.00% SL, and 2x Martingale SAR across Indian Equities, US Commodities & Crypto."}
           </p>
         </div>
 
@@ -201,6 +203,7 @@ export default function SimulationPage() {
               <option value="trend_following_futures">6. Trend-Following Futures</option>
               <option value="original_live">7. Original Live Strategy (1.0% target)</option>
               <option value="original_futures">8. Original Futures (1.0% target)</option>
+              <option value="original_1pct">9. Original 1.0% (Indian, US & Crypto)</option>
             </select>
           </div>
 

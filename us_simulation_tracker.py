@@ -183,34 +183,35 @@ def run_us_simulation_tracking():
                         buy_target = round(buy_entry * 1.01, dec_places)
                         sell_target = round(sell_entry * 0.99, dec_places)
                         
-                        new_order = {
-                            "symbol": symbol,
-                            "date": today_str,
-                            "time": candle_time,
-                            "plan": "basic",
-                            "buy_entry": buy_entry,
-                            "buy_target": buy_target,
-                            "buy_stop_loss": buy_stop,
-                            "buy_qty": calculate_quantity(symbol, buy_entry),
-                            "sell_entry": sell_entry,
-                            "sell_target": sell_target,
-                            "sell_stop_loss": sell_stop,
-                            "sell_qty": calculate_quantity(symbol, sell_entry),
-                            "status": "PENDING",
-                            "active_leg": None,
-                            "entry_price": None,
-                            "exit_price": None,
-                            "entry_time": None,
-                            "exit_time": None,
-                            "pnl": 0.0,
-                            "ltp": float(sig.get("price", buy_entry)),
-                            "buy_stop_loss_original": buy_stop,
-                            "sell_stop_loss_original": sell_stop,
-                            "is_sar": False
-                        }
-                        sim_orders.append(new_order)
+                        for plan in ["basic", "original_1pct"]:
+                            new_order = {
+                                "symbol": symbol,
+                                "date": today_str,
+                                "time": candle_time,
+                                "plan": plan,
+                                "buy_entry": buy_entry,
+                                "buy_target": buy_target,
+                                "buy_stop_loss": buy_stop,
+                                "buy_qty": calculate_quantity(symbol, buy_entry),
+                                "sell_entry": sell_entry,
+                                "sell_target": sell_target,
+                                "sell_stop_loss": sell_stop,
+                                "sell_qty": calculate_quantity(symbol, sell_entry),
+                                "status": "PENDING",
+                                "active_leg": None,
+                                "entry_price": None,
+                                "exit_price": None,
+                                "entry_time": None,
+                                "exit_time": None,
+                                "pnl": 0.0,
+                                "ltp": float(sig.get("price", buy_entry)),
+                                "buy_stop_loss_original": buy_stop,
+                                "sell_stop_loss_original": sell_stop,
+                                "is_sar": False
+                            }
+                            sim_orders.append(new_order)
                         updated = True
-                        logging.info(f"[US Sim Tracker] Registered new simulation breakout bracket for {symbol}")
+                        logging.info(f"[US Sim Tracker] Registered new simulation breakout brackets (basic & original_1pct) for {symbol}")
 
             all_symbols = set([o["symbol"] for o in sim_orders if o["status"] in ["PENDING", "PENDING_SAR", "ACTIVE"]])
             
