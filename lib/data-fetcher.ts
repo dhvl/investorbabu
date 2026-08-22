@@ -283,26 +283,21 @@ export async function getSimulatedOrders() {
 }
 
 export async function getUsSimulatedOrders() {
-  let allOrders: any[] = [];
-  const orders = await fetchFromVPS('simulated_orders');
+  const orders = await fetchFromVPS('us_simulated_orders');
   if (Array.isArray(orders)) {
-    const us = orders.filter((o: any) => ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol));
-    allOrders.push(...us.map((o: any) => ({ ...o, plan: "original_1pct" })));
+    return orders.map((o: any) => ({ ...o, plan: "original_1pct" }));
   }
-  return allOrders;
+  return [];
 }
 
 export async function getEashaanSimulatedOrders() {
-  let allOrders: any[] = [];
-  return allOrders;
+  return [];
 }
 
 export async function getCryptoSimulatedOrders() {
-  let allOrders: any[] = [];
-  const orders = await fetchFromVPS('simulated_orders');
+  const orders = await fetchFromVPS('crypto_simulated_orders');
   if (Array.isArray(orders)) {
-    const crypto = orders.filter((o: any) => o.symbol === "BTCUSD");
-    allOrders.push(...crypto.map((o: any) => ({ ...o, plan: "original_1pct" })));
+    return orders.map((o: any) => ({ ...o, plan: "original_1pct" }));
   }
-  return allOrders;
+  return [];
 }
