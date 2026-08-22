@@ -157,126 +157,92 @@ export default function SimulationPage() {
     return acc + cap;
   }, 0);
 
+  const isUsCrypto = (sym: string) => ["BTCUSD", "XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(sym);
+  const isUsOrCryptoDay = filteredOrders.length > 0 && filteredOrders.every(o => isUsCrypto(o.symbol));
+  const mainCurrency = isUsOrCryptoDay ? "$" : "₹";
+
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
-        <div>
-          <h1 className="text-4xl font-bold text-white tracking-tight font-display mb-2 flex items-center gap-3">
-            {selectedPlan === "original_1pct" && "Original 1.0% Strategy (Universal)"}
-            {selectedPlan === "original_live" && "Indian Equities Cash (1.0% System)"}
-            {selectedPlan === "original_futures" && "Indian Equities Futures (2 Lots 1.0% System)"}
-            <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Final Strategy</Badge>
-          </h1>
-          <p className="text-slate-400">
-            {selectedPlan === "original_1pct" && "Unified Final Strategy: 15m Inside Bar + Continuous 1:1 Target & SL (1.0%) + 2x Martingale SAR across Indian Equities, US Commodities & Crypto."}
-            {selectedPlan === "original_live" && "Indian Equities Cash (₹1L flat exposure, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
-            {selectedPlan === "original_futures" && "Indian Equities Futures (2 Lots fixed sizing, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
-          </p>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 relative overflow-hidden font-sans selection:bg-blue-500/30">
+      {/* Background glowing effects */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/3 right-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Strategy:</span>
-            <select 
-              value={selectedPlan}
-              onChange={(e) => setSelectedPlan(e.target.value)}
-              className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[240px] appearance-none cursor-pointer"
-            >
-              <option value="original_1pct">1. Universal 1.0% System (All 3 Markets)</option>
-              <option value="original_live">2. Indian Equities Cash (1.0% Target)</option>
-              <option value="original_futures">3. Indian Equities Futures (2 Lots 1.0%)</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date:</span>
-            <select 
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[150px] appearance-none cursor-pointer"
-            >
-              <option value="">All History</option>
-              {uniqueDates.map(date => (
-                <option key={date} value={date}>{date}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2.5 px-4 py-2 rounded-full border bg-blue-500/10 border-blue-500/20">
-            <div className="w-2.5 h-2.5 rounded-full pulse-dot bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-            <span className="text-[0.7rem] font-bold uppercase tracking-wider text-blue-400">
-              Paper Engine Online (LTP 10s)
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 animate-pulse">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-28 bg-white/5 rounded-2xl" />
-          ))}
-        </div>
-      ) : (
-        <>
-          {/* Strategy Details Explanation Box */}
-          <GlassCard className="p-5 mb-8 border-white/5 bg-gradient-to-r from-slate-900/60 to-blue-950/20">
-            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-              <Target className="w-4 h-4 text-blue-400" />
-              <span>Unified Strategy: 1% Target & 1% Stop-Loss (with Martingale SAR Reversal)</span>
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              This simulation engine runs a strict bracket logic with a 1.0% Target and 1.0% Stop-Loss.
-              If the initial breakout trade hits the stop-loss (1.0% loss), the engine automatically triggers a double-size (2x) Stop-And-Reverse (SAR) reversal trade in the opposite direction.
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* Top Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-white tracking-tight font-display mb-2 flex items-center gap-3">
+              {selectedPlan === "original_1pct" && "Original 1.0% Strategy (Universal)"}
+              {selectedPlan === "original_live" && "Indian Equities Cash (1.0% System)"}
+              {selectedPlan === "original_futures" && "Indian Equities Futures (2 Lots 1.0% System)"}
+              <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Final Strategy</Badge>
+            </h1>
+            <p className="text-slate-400">
+              {selectedPlan === "original_1pct" && "Unified Final Strategy: 15m Inside Bar + Continuous 1:1 Target & SL (1.0%) + 2x Martingale SAR across Indian Equities, US Commodities & Crypto."}
+              {selectedPlan === "original_live" && "Indian Equities Cash (₹1L flat exposure, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
+              {selectedPlan === "original_futures" && "Indian Equities Futures (2 Lots fixed sizing, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
             </p>
-          </GlassCard>
+          </div>
 
-          {/* Key Metrics Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <GlassCard className="relative overflow-hidden p-6 border-white/5">
-              <div className="flex justify-between items-start mb-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Simulation P&L</p>
-                <div className={cn(
-                  "p-2 rounded-lg",
-                  totalPnL >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
-                )}>
-                  <Coins className="w-5 h-5" />
-                </div>
-              </div>
-              <h3 className={cn(
-                "text-3xl font-bold tracking-tight font-display mb-1",
-                totalPnL >= 0 ? "text-emerald-400 text-shadow-emerald" : "text-red-400 text-shadow-red"
-              )}>
-                ₹ {totalPnL >= 0 ? "+" : ""}{totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </h3>
-              <p className="text-xs text-slate-500 font-medium">
-                Est. ROI: <span className={overallRoi >= 0 ? "text-emerald-400" : "text-red-400"}>{overallRoi.toFixed(2)}%</span> | Capital: ₹ {Math.round(peakTotalCapital).toLocaleString()}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Strategy:</span>
+              <select 
+                value={selectedPlan}
+                onChange={(e) => setSelectedPlan(e.target.value)}
+                className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[240px] appearance-none cursor-pointer"
+              >
+                <option value="original_1pct">1. Universal 1.0% System (All 3 Markets)</option>
+                <option value="original_live">2. Indian Equities Cash (1.0% Target)</option>
+                <option value="original_futures">3. Indian Equities Futures (2 Lots 1.0%)</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date:</span>
+              <select 
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[150px] appearance-none cursor-pointer"
+              >
+                {uniqueDates.map(date => (
+                  <option key={date} value={date}>{date}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 bg-slate-900/50">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-mono font-bold text-slate-300">
+                PAPER ENGINE ONLINE (LTP 10S)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Strategy Context Banner */}
+        <GlassCard className="p-4 mb-8 border-blue-500/20 bg-blue-500/5 relative overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+              <Target className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                Unified Strategy: 1% Target & 1% Stop-Loss (with Martingale SAR Reversal)
+              </h4>
+              <p className="text-xs text-slate-400 mt-0.5">
+                This simulation engine runs a strict bracket logic with a 1.0% Target and 1.0% Stop-Loss. If the initial breakout trade hits the stop-loss (1.0% loss), the engine automatically triggers a double-size (2x) Stop-And-Reverse (SAR) reversal trade in the opposite direction.
               </p>
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* Metric Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <GlassCard className="relative overflow-hidden p-6 border-white/5">
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Simulation P&L</p>
               <div className={cn(
-                "absolute -bottom-12 -left-12 w-24 h-24 blur-3xl opacity-20 pointer-events-none",
-                totalPnL >= 0 ? "bg-emerald-500" : "bg-red-500"
-              )} />
-            </GlassCard>
-
-            <GlassCard className="relative overflow-hidden p-6 border-white/5">
-              <div className="flex justify-between items-start mb-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Positions</p>
-                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                  <Activity className="w-5 h-5" />
-                </div>
-              </div>
-              <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
-                {activePositions.length} <span className="text-sm font-medium text-slate-500">running</span>
-              </h3>
-              <p className="text-xs text-slate-500">Est. Margin Allocated: ₹ {totalCapitalUsed.toLocaleString()}</p>
-              <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-blue-500/10 blur-3xl pointer-events-none" />
-            </GlassCard>
-
-            <GlassCard className="relative overflow-hidden p-6 border-white/5">
-              <div className="flex justify-between items-start mb-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hit/Win Rate</p>
-                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
                   <BarChart3 className="w-5 h-5" />
                 </div>
               </div>
@@ -469,7 +435,7 @@ export default function SimulationPage() {
                                 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-shadow-emerald" 
                                 : "bg-red-500/10 border-red-500/20 text-red-400 text-shadow-red"
                             )}>
-                              {symbolPnL >= 0 ? "+" : ""}₹ {symbolPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({symbolPnL >= 0 ? "+" : ""}{symbolPnLPct.toFixed(2)}%)
+                              {symbolPnL >= 0 ? "+" : ""}{isUsCrypto(symbol) ? "$" : "₹"} {symbolPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({symbolPnL >= 0 ? "+" : ""}{symbolPnLPct.toFixed(2)}%)
                             </span>
                           </div>
                         </div>
@@ -547,12 +513,12 @@ export default function SimulationPage() {
                                           </>
                                         )}
                                       </td>
-                                      <td className="px-6 py-4 text-xs font-bold text-white">₹ {o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
+                                      <td className="px-6 py-4 text-xs font-bold text-white">{isUsCrypto(symbol) ? "$" : "₹"} {o.ltp.toLocaleString(undefined, { minimumFractionDigits: 1 })}</td>
                                       <td className={cn(
                                         "px-6 py-4 text-xs font-bold",
                                         o.pnl > 0 ? "text-emerald-400 font-bold" : o.pnl < 0 ? "text-red-400 font-bold" : "text-slate-400"
                                       )}>
-                                        {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `₹ ${o.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                                        {o.pnl > 0 ? "+" : ""}{o.pnl !== 0 ? `${isUsCrypto(symbol) ? "$" : "₹"} ${o.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                                       </td>
                                       <td className="px-6 py-4 text-right">
                                         <span className={cn(
