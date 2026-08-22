@@ -275,208 +275,34 @@ export async function getSimulatedOrders() {
   let allOrders: any[] = [];
   const orders = await fetchFromVPS('simulated_orders');
   if (Array.isArray(orders)) {
-    allOrders = orders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+    allOrders = orders.map((o: any) => ({ ...o, plan: o.plan || "original_live" }));
   }
 
-  // Workaround: Pull today's Indian simulated trades from us_simulated_orders where they were misrouted on VPS
-  const liveUsOrders = await fetchFromVPS('us_simulated_orders');
-  if (Array.isArray(liveUsOrders)) {
-    const indianUS = liveUsOrders
-      .filter((o: any) => !["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD", "BTCUSD"].includes(o.symbol))
-      .map((o: any) => ({ ...o, plan: o.plan || "basic" }));
-    allOrders.push(...indianUS);
-  }
-
-  return allOrders;
+  // Filter STRICTLY for Indian Equities only (exclude commodities and crypto)
+  return allOrders.filter((o: any) => !["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD", "BTCUSD"].includes(o.symbol));
 }
 
 export async function getUsSimulatedOrders() {
   let allOrders: any[] = [];
-  
-  // Active today's simulated orders
-  const liveOrders = await fetchFromVPS('us_simulated_orders');
-  if (Array.isArray(liveOrders)) {
-    allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+  const orders = await fetchFromVPS('simulated_orders');
+  if (Array.isArray(orders)) {
+    const us = orders.filter((o: any) => ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol));
+    allOrders.push(...us.map((o: any) => ({ ...o, plan: "original_1pct" })));
   }
-  
-  // Historical trades
-  const basenames = await fetchFromVPS('list_trade_files');
-  if (Array.isArray(basenames)) {
-    const tradeFiles = basenames.filter(f => f.startsWith('us_trades_'));
-    
-    const filePromises = tradeFiles.map(async (file) => {
-      try {
-        const dateStrRaw = file.replace('us_trades_', '');
-        // format to "19 May 2026"
-        const year = dateStrRaw.slice(0, 4);
-        const monthNum = dateStrRaw.slice(4, 6);
-        const day = dateStrRaw.slice(6, 8);
-        const dateObj = new Date(`${year}-${monthNum}-${day}`);
-        const formattedDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
-        
-        const pastTrades = await fetchFromVPS(file);
-        if (Array.isArray(pastTrades)) {
-          return pastTrades.map((t: any) => ({
-            symbol: t.symbol,
-            date: formattedDate,
-            time: t.time,
-            plan: t.plan || "basic",
-            active_leg: t.transaction_type,
-            buy_qty: t.quantity,
-            sell_qty: t.quantity,
-            entry_price: t.entry_price,
-            exit_price: t.exit_price,
-            pnl: t.pnl,
-            status: t.status,
-            verified: false,
-            buy_entry: t.entry_price || 0,
-            buy_target: null,
-            buy_stop_loss: t.exit_price || 0,
-            sell_entry: t.entry_price || 0,
-            sell_target: null,
-            sell_stop_loss: t.exit_price || 0,
-            ltp: t.exit_price || 0,
-            is_sar: false
-          }));
-        }
-      } catch (err) {
-        console.error("Error reading US history", file, err);
-      }
-      return [];
-    });
-    
-    const resolvedOrdersList = await Promise.all(filePromises);
-    resolvedOrdersList.forEach(orders => {
-      if (orders) allOrders.push(...orders);
-    });
-  }
-  
-  // Filter for US commodities only (exclude Indian symbols and BTCUSD)
-  return allOrders.filter(o => ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol));
+  return allOrders;
 }
 
 export async function getEashaanSimulatedOrders() {
   let allOrders: any[] = [];
-  
-  // Active today's simulated orders
-  const liveOrders = await fetchFromVPS('eashaan_simulated_orders');
-  if (Array.isArray(liveOrders)) {
-    allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
-  }
-  
-  // Historical trades
-  const basenames = await fetchFromVPS('list_trade_files');
-  if (Array.isArray(basenames)) {
-    const tradeFiles = basenames.filter(f => f.startsWith('eashaan_trades_'));
-    
-    const filePromises = tradeFiles.map(async (file) => {
-      try {
-        const dateStrRaw = file.replace('eashaan_trades_', '');
-        const year = dateStrRaw.slice(0, 4);
-        const monthNum = dateStrRaw.slice(4, 6);
-        const day = dateStrRaw.slice(6, 8);
-        const dateObj = new Date(`${year}-${monthNum}-${day}`);
-        const formattedDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
-        
-        const pastTrades = await fetchFromVPS(file);
-        if (Array.isArray(pastTrades)) {
-          return pastTrades.map((t: any) => ({
-            symbol: t.symbol,
-            date: formattedDate,
-            time: t.time,
-            plan: t.plan || "basic",
-            active_leg: t.transaction_type,
-            buy_qty: t.quantity,
-            sell_qty: t.quantity,
-            entry_price: t.entry_price,
-            exit_price: t.exit_price,
-            pnl: t.pnl,
-            status: t.status,
-            verified: false,
-            buy_entry: t.entry_price || 0,
-            buy_target: null,
-            buy_stop_loss: t.exit_price || 0,
-            sell_entry: t.entry_price || 0,
-            sell_target: null,
-            sell_stop_loss: t.exit_price || 0,
-            ltp: t.exit_price || 0,
-            is_sar: false
-          }));
-        }
-      } catch (err) {
-        console.error("Error reading Eashaan history", file, err);
-      }
-      return [];
-    });
-    
-    const resolvedOrdersList = await Promise.all(filePromises);
-    resolvedOrdersList.forEach(orders => {
-      if (orders) allOrders.push(...orders);
-    });
-  }
-  
   return allOrders;
 }
 
 export async function getCryptoSimulatedOrders() {
   let allOrders: any[] = [];
-  
-  // Active today's simulated orders
-  const liveOrders = await fetchFromVPS('us_simulated_orders');
-  if (Array.isArray(liveOrders)) {
-    allOrders = liveOrders.map((o: any) => ({ ...o, plan: o.plan || "basic" }));
+  const orders = await fetchFromVPS('simulated_orders');
+  if (Array.isArray(orders)) {
+    const crypto = orders.filter((o: any) => o.symbol === "BTCUSD");
+    allOrders.push(...crypto.map((o: any) => ({ ...o, plan: "original_1pct" })));
   }
-  
-  // Historical trades
-  const basenames = await fetchFromVPS('list_trade_files');
-  if (Array.isArray(basenames)) {
-    const tradeFiles = basenames.filter(f => f.startsWith('us_trades_'));
-    
-    const filePromises = tradeFiles.map(async (file) => {
-      try {
-        const dateStrRaw = file.replace('us_trades_', '');
-        const year = dateStrRaw.slice(0, 4);
-        const monthNum = dateStrRaw.slice(4, 6);
-        const day = dateStrRaw.slice(6, 8);
-        const dateObj = new Date(`${year}-${monthNum}-${day}`);
-        const formattedDate = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
-        
-        const pastTrades = await fetchFromVPS(file);
-        if (Array.isArray(pastTrades)) {
-          return pastTrades.map((t: any) => ({
-            symbol: t.symbol,
-            date: formattedDate,
-            time: t.time,
-            plan: t.plan || "basic",
-            active_leg: t.transaction_type,
-            buy_qty: t.quantity,
-            sell_qty: t.quantity,
-            entry_price: t.entry_price,
-            exit_price: t.exit_price,
-            pnl: t.pnl,
-            status: t.status,
-            verified: false,
-            buy_entry: t.entry_price || 0,
-            buy_target: null,
-            buy_stop_loss: t.exit_price || 0,
-            sell_entry: t.entry_price || 0,
-            sell_target: null,
-            sell_stop_loss: t.exit_price || 0,
-            ltp: t.exit_price || 0,
-            is_sar: false
-          }));
-        }
-      } catch (err) {
-        console.error("Error reading Crypto history", file, err);
-      }
-      return [];
-    });
-    
-    const resolvedOrdersList = await Promise.all(filePromises);
-    resolvedOrdersList.forEach(orders => {
-      if (orders) allOrders.push(...orders);
-    });
-  }
-  
-  return allOrders.filter(o => o.symbol === "BTCUSD");
+  return allOrders;
 }

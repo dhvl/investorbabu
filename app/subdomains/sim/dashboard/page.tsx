@@ -27,7 +27,7 @@ export default function SimulationPage() {
   const [loading, setLoading] = useState(true);
   const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-  const [selectedPlan, setSelectedPlan] = useState<string>("original_1pct");
+  const [selectedPlan, setSelectedPlan] = useState<string>("original_live");
 
   useEffect(() => {
     async function fetchSimulationData() {
@@ -172,15 +172,13 @@ export default function SimulationPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
           <div>
             <h1 className="text-4xl font-bold text-white tracking-tight font-display mb-2 flex items-center gap-3">
-              {selectedPlan === "original_1pct" && "Original 1.0% Strategy (Universal)"}
-              {selectedPlan === "original_live" && "Indian Equities Cash (1.0% System)"}
-              {selectedPlan === "original_futures" && "Indian Equities Futures (2 Lots 1.0% System)"}
+              {selectedPlan === "original_live" && "Indian Equities Cash Sim"}
+              {selectedPlan === "original_futures" && "Indian Equities Futures Sim"}
               <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Final Strategy</Badge>
             </h1>
             <p className="text-slate-400">
-              {selectedPlan === "original_1pct" && "Unified Final Strategy: 15m Inside Bar + Continuous 1:1 Target & SL (1.0%) + 2x Martingale SAR across Indian Equities, US Commodities & Crypto."}
-              {selectedPlan === "original_live" && "Indian Equities Cash (₹1L flat exposure, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
-              {selectedPlan === "original_futures" && "Indian Equities Futures (2 Lots fixed sizing, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
+              {selectedPlan === "original_live" && "Simulated Cash Equity (₹1L flat exposure, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
+              {selectedPlan === "original_futures" && "Simulated Futures tracking (2 Lots fixed sizing, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
             </p>
           </div>
 
@@ -192,9 +190,8 @@ export default function SimulationPage() {
                 onChange={(e) => setSelectedPlan(e.target.value)}
                 className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[240px] appearance-none cursor-pointer"
               >
-                <option value="original_1pct">1. Universal 1.0% System (All 3 Markets)</option>
-                <option value="original_live">2. Indian Equities Cash (1.0% Target)</option>
-                <option value="original_futures">3. Indian Equities Futures (2 Lots 1.0%)</option>
+                <option value="original_live">1. Cash Equity (1.0% Target & 2x SAR)</option>
+                <option value="original_futures">2. Futures (2 Lots 1.0% Target & 2x SAR)</option>
               </select>
             </div>
 
