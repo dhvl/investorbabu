@@ -32,8 +32,15 @@ export default function UsSimulationPage() {
   useEffect(() => {
     async function fetchSimulationData() {
       try {
-        const resp = await fetch("/api/us-simulation");
-        const data = await resp.json();
+        let data: any = [];
+        try {
+          const resp = await fetch("/api/us-simulation", { cache: "no-store" });
+          data = await resp.json();
+        } catch (e) {}
+        if (!Array.isArray(data) || data.length === 0) {
+          const resp2 = await fetch("https://api.investorbabu.com/api/vps-data?file=us_simulated_orders");
+          data = await resp2.json();
+        }
         if (Array.isArray(data)) {
           setOrders(data);
         }
