@@ -172,7 +172,15 @@ export default function SimulationPage() {
           </div>
         </div>
 
-        {/* Strategy Context Banner */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 animate-pulse">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-28 bg-white/5 rounded-2xl" />
+            ))}
+          </div>
+        ) : (
+          <>
+            {/* Strategy Context Banner */}
         <GlassCard className="p-4 mb-8 border-blue-500/20 bg-blue-500/5 relative overflow-hidden">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
@@ -537,6 +545,7 @@ export default function SimulationPage() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
