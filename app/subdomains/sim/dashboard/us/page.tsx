@@ -102,9 +102,9 @@ export default function UsSimulationPage() {
   });
 
   // Filter orders by date AND plan
+  // Filter orders by date
   const filteredOrders = adjustedOrders.filter(o => 
-    (!selectedDate || o.date === selectedDate) && 
-    (o.plan === selectedPlan)
+    (!selectedDate || o.date === selectedDate)
   );
 
   // Compute stats

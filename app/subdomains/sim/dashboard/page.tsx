@@ -107,10 +107,13 @@ export default function SimulationPage() {
   });
 
   // Filter orders by date AND plan
-  const filteredOrders = adjustedOrders.filter(o => 
-    (!selectedDate || o.date === selectedDate) && 
-    (o.plan === selectedPlan)
-  );
+  const filteredOrders = adjustedOrders.filter(o => {
+    const dateMatch = !selectedDate || o.date === selectedDate;
+    const planMatch = selectedPlan === "original_futures" 
+      ? o.plan === "original_futures"
+      : (o.plan === "original_live" || o.plan === "original_1pct" || o.plan === "basic");
+    return dateMatch && planMatch;
+  });
 
   // Compute stats
   const activePositions = filteredOrders.filter(o => o.status === "ACTIVE");
