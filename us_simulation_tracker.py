@@ -183,7 +183,7 @@ def run_us_simulation_tracking():
                         buy_target = round(buy_entry * 1.01, dec_places)
                         sell_target = round(sell_entry * 0.99, dec_places)
                         
-                        for plan in ["basic", "original_1pct"]:
+                        for plan in ["original_1pct"]:
                             new_order = {
                                 "symbol": symbol,
                                 "date": today_str,

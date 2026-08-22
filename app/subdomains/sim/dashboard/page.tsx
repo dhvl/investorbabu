@@ -27,7 +27,7 @@ export default function SimulationPage() {
   const [loading, setLoading] = useState(true);
   const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(',', '');
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-  const [selectedPlan, setSelectedPlan] = useState<string>("basic");
+  const [selectedPlan, setSelectedPlan] = useState<string>("original_1pct");
 
   useEffect(() => {
     async function fetchSimulationData() {
@@ -163,47 +163,29 @@ export default function SimulationPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-4xl font-bold text-white tracking-tight font-display mb-2 flex items-center gap-3">
-             {selectedPlan === "basic" && "Indian Cash Equity Simulation"}
-            {selectedPlan === "futures_same" && "Indian Futures (Same Basket) Sim"}
-            {selectedPlan === "futures_selected" && "Indian Futures (Optimized Top 5) Sim"}
-            {selectedPlan === "dynamic_volume" && "Indian Futures (Dynamic Volume) Sim"}
-            {selectedPlan === "trend_following_equity" && "Indian Trend-Following Cash Equity"}
-            {selectedPlan === "trend_following_futures" && "Indian Trend-Following Futures"}
-            {selectedPlan === "original_live" && "Indian Original Live Strategy"}
-            {selectedPlan === "original_futures" && "Indian Original Futures Strategy"}
-            {selectedPlan === "original_1pct" && "Original 1.0% Strategy (Indian, US & Crypto)"}
-            <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Paper-Trading</Badge>
+            {selectedPlan === "original_1pct" && "Original 1.0% Strategy (Universal)"}
+            {selectedPlan === "original_live" && "Indian Equities Cash (1.0% System)"}
+            {selectedPlan === "original_futures" && "Indian Equities Futures (2 Lots 1.0% System)"}
+            <Badge variant="info" className="text-[0.6rem] uppercase tracking-widest px-2 py-0.5">Final Strategy</Badge>
           </h1>
           <p className="text-slate-400">
-            {selectedPlan === "basic" && "Simulated Cash Equity dry-run tracking (₹1L exposure per trade)."}
-            {selectedPlan === "futures_same" && "Simulated Futures tracking for current basket (2 Lots, ₹25/lot brokerage)."}
-            {selectedPlan === "futures_selected" && "Simulated Futures tracking for optimized Top 5 basket (2 Lots, ₹25/lot brokerage)."}
-            {selectedPlan === "dynamic_volume" && "Simulated Futures tracking for daily pre-market volume surge leaders (2 Lots, ₹25/lot brokerage)."}
-            {selectedPlan === "trend_following_equity" && "Simulated Trend-Following Cash Equity with 0.40% targets (compounding up to 2 legs)."}
-            {selectedPlan === "trend_following_futures" && "Simulated Trend-Following Futures with 0.40% targets (compounding up to 2 legs)."}
-            {selectedPlan === "original_live" && "Simulated Original Live Strategy (1.00% target, Martingale SAR active, No Nifty Veto)."}
-            {selectedPlan === "original_futures" && "Simulated Original Futures Strategy (1.00% target, Martingale SAR active, No Nifty Veto, 2 Lots)."}
-            {selectedPlan === "original_1pct" && "Unified Original Strategy with 1.00% Target, 1.00% SL, and 2x Martingale SAR across Indian Equities, US Commodities & Crypto."}
+            {selectedPlan === "original_1pct" && "Unified Final Strategy: 15m Inside Bar + Continuous 1:1 Target & SL (1.0%) + 2x Martingale SAR across Indian Equities, US Commodities & Crypto."}
+            {selectedPlan === "original_live" && "Indian Equities Cash (₹1L flat exposure, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
+            {selectedPlan === "original_futures" && "Indian Equities Futures (2 Lots fixed sizing, 1.00% target, 1.00% SL, 2x Martingale SAR on whipsaws)."}
           </p>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Type:</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Strategy:</span>
             <select 
               value={selectedPlan}
               onChange={(e) => setSelectedPlan(e.target.value)}
-              className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[210px] appearance-none cursor-pointer"
+              className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[240px] appearance-none cursor-pointer"
             >
-              <option value="basic">1. Cash Equity (Current)</option>
-              <option value="futures_same">2. Futures of Same Basket</option>
-              <option value="futures_selected">3. Futures Optimized Basket</option>
-              <option value="dynamic_volume">4. Dynamic Volume Basket</option>
-              <option value="trend_following_equity">5. Trend-Following Cash Equity</option>
-              <option value="trend_following_futures">6. Trend-Following Futures</option>
-              <option value="original_live">7. Original Live Strategy (1.0% target)</option>
-              <option value="original_futures">8. Original Futures (1.0% target)</option>
-              <option value="original_1pct">9. Original 1.0% (Indian, US & Crypto)</option>
+              <option value="original_1pct">1. Universal 1.0% System (All 3 Markets)</option>
+              <option value="original_live">2. Indian Equities Cash (1.0% Target)</option>
+              <option value="original_futures">3. Indian Equities Futures (2 Lots 1.0%)</option>
             </select>
           </div>
 

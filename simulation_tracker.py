@@ -232,20 +232,12 @@ def run_simulation_tracking():
                 symbol = sig.get("instrument")
                 candle_time = sig.get("candle_time")
                 
-                # Determine which plans apply to this symbol
+                # Final Strategy Plans (1.0% Target + 1.0% SL + 2x Martingale SAR)
                 plans_to_add = []
                 if symbol in CURRENT_BASKET:
-                    plans_to_add.append("basic")         # Type 1: Cash Equity
-                    plans_to_add.append("futures_same")   # Type 2: Futures of Same
-                    plans_to_add.append("trend_following_equity") # Type 5: Trend-Following Cash Equity
-                    plans_to_add.append("trend_following_futures") # Type 6: Trend-Following Futures
-                    plans_to_add.append("original_live") # Type 7: Original 1.0% Target & Martingale SAR Cash Equity
-                    plans_to_add.append("original_futures") # Type 8: Original 1.0% Target & Martingale SAR Futures
-                    plans_to_add.append("original_1pct") # Type 9: Original 1.0% Target & Martingale SAR Universal
-                if symbol in OPTIMIZED_BASKET:
-                    plans_to_add.append("futures_selected") # Type 3: Futures of Selection
-                if symbol in dynamic_symbols:
-                    plans_to_add.append("dynamic_volume")   # Type 4: Dynamic Volume Basket
+                    plans_to_add.append("original_1pct")    # Universal 1.0% Target & Martingale SAR
+                    plans_to_add.append("original_live")    # Indian Cash Equity 1.0%
+                    plans_to_add.append("original_futures") # Indian Futures 2 Lots 1.0%
                 
                 for plan in plans_to_add:
                     # Check if already exists in Sim
