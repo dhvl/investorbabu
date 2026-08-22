@@ -74,41 +74,9 @@ export default function CryptoSimulationPage() {
   const uniqueDates = Array.from(uniqueDatesSet) as string[];
   uniqueDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
-  // Adjust orders dynamically based on category settings
-  const adjustedOrders = orders.map(o => {
-    const isBtc = o.symbol === "BTCUSD";
-    const isUs = ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol);
-    const categorySettings = isBtc ? settings.crypto : (isUs ? settings.us : settings.indian);
-    
-    const targetLotSize = categorySettings.lot_size;
-    const targetCapital = categorySettings.capital;
-    
-    const entryPrice = o.entry_price || o.buy_entry || 0;
-    if (entryPrice <= 0) return o;
-    
-    let newQty = 0;
-    if (targetLotSize > 0) {
-      newQty = targetLotSize;
-    } else {
-      if (isBtc) {
-        newQty = parseFloat((targetCapital / entryPrice).toFixed(4));
-      } else {
-        newQty = Math.max(Math.floor(targetCapital / entryPrice), 1);
-      }
-    }
-    
-    const oldQty = o.buy_qty || o.sell_qty || 1;
-    const scalingFactor = newQty / oldQty;
-    
-    return {
-      ...o,
-      buy_qty: o.buy_qty ? newQty : o.buy_qty,
-      sell_qty: o.sell_qty ? newQty : o.sell_qty,
-      pnl: o.pnl ? parseFloat((o.pnl * scalingFactor).toFixed(4)) : 0
-    };
-  });
+  // Use exact simulated orders directly
+  const adjustedOrders = orders;
 
-  // Filter orders by date AND plan
   // Filter orders by date
   const filteredOrders = adjustedOrders.filter(o => 
     (!selectedDate || o.date === selectedDate)
@@ -127,23 +95,14 @@ export default function CryptoSimulationPage() {
     ? (completedPositions.filter(o => (o.pnl || 0) > 0).length / completedPositions.length) * 100 
     : 0;
 
-  // Compute peak capital per symbol
-  const capitalBySymbol = filteredOrders.reduce((acc, o) => {
-    const qty = o.active_leg === "BUY" ? o.buy_qty : (o.active_leg === "SELL" ? o.sell_qty : Math.max(o.buy_qty || 0, o.sell_qty || 0));
-    const price = o.entry_price || o.buy_entry || 0; 
-    const cap = price * qty;
-    if (!acc[o.symbol] || cap > acc[o.symbol]) {
-      acc[o.symbol] = cap;
-    }
-    return acc;
-  }, {} as Record<string, number>);
-
-  const peakTotalCapital = Object.values(capitalBySymbol).reduce((a, b) => a + b, 0);
+  // Base capital: $10,000 for Crypto
+  const peakTotalCapital = 10000;
   const overallRoi = peakTotalCapital > 0 ? (totalPnL / peakTotalCapital) * 100 : 0;
 
   const totalCapitalUsed = activePositions.reduce((acc, o) => {
     const qty = o.active_leg === "BUY" ? o.buy_qty : o.sell_qty;
-    return acc + ((o.entry_price || 0) * qty);
+    let cap = (o.entry_price || 0) * qty;
+    return acc + cap;
   }, 0);
 
   return (

@@ -74,44 +74,8 @@ export default function SimulationPage() {
   const uniqueDates = Array.from(uniqueDatesSet) as string[];
   uniqueDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
-  // Adjust orders dynamically based on category settings
-  const adjustedOrders = orders.map(o => {
-    // If this is a futures or dynamic volume plan, bypass client-side scaling and use the exact replayed/tracked quantities
-    if (o.plan && (o.plan.startsWith("futures") || o.plan === "dynamic_volume")) {
-      return o;
-    }
-
-    const isBtc = o.symbol === "BTCUSD";
-    const isUs = ["XAGUSD", "XAUUSD", "OILUSD", "CUCUSD"].includes(o.symbol);
-    const categorySettings = isBtc ? settings.crypto : (isUs ? settings.us : settings.indian);
-    
-    const targetLotSize = categorySettings.lot_size;
-    const targetCapital = categorySettings.capital;
-    
-    const entryPrice = o.entry_price || o.buy_entry || 0;
-    if (entryPrice <= 0) return o;
-    
-    let newQty = 0;
-    if (targetLotSize > 0) {
-      newQty = targetLotSize;
-    } else {
-      if (isBtc) {
-        newQty = parseFloat((targetCapital / entryPrice).toFixed(4));
-      } else {
-        newQty = Math.max(Math.floor(targetCapital / entryPrice), 1);
-      }
-    }
-    
-    const oldQty = o.buy_qty || o.sell_qty || 1;
-    const scalingFactor = newQty / oldQty;
-    
-    return {
-      ...o,
-      buy_qty: o.buy_qty ? newQty : o.buy_qty,
-      sell_qty: o.sell_qty ? newQty : o.sell_qty,
-      pnl: o.pnl ? parseFloat((o.pnl * scalingFactor).toFixed(4)) : 0
-    };
-  });
+  // Use exact simulated orders directly from the verified simulation engine
+  const adjustedOrders = orders;
 
   // Filter orders by date AND plan
   const filteredOrders = adjustedOrders.filter(o => {
@@ -135,33 +99,14 @@ export default function SimulationPage() {
     ? (completedPositions.filter(o => (o.pnl || 0) > 0).length / completedPositions.length) * 100 
     : 0;
 
-  // Compute peak capital per symbol
-  const capitalBySymbol = filteredOrders.reduce((acc, o) => {
-    const qty = o.active_leg === "BUY" ? o.buy_qty : (o.active_leg === "SELL" ? o.sell_qty : Math.max(o.buy_qty || 0, o.sell_qty || 0));
-    const price = o.entry_price || o.buy_entry || 0; 
-    let cap = price * qty;
-    
-    // If this is a futures or dynamic volume plan, capital is the actual exchange margin (approx 20% of contract value)
-    if (o.plan && (o.plan.startsWith("futures") || o.plan === "dynamic_volume")) {
-      cap = cap * 0.20; // 20% margin
-    }
-    
-    if (!acc[o.symbol] || cap > acc[o.symbol]) {
-      acc[o.symbol] = cap;
-    }
-    return acc;
-  }, {} as Record<string, number>);
-
-  const peakTotalCapital = Object.keys(capitalBySymbol).length > 0
-    ? Object.values(capitalBySymbol).reduce((a, b) => a + b, 0)
-    : (settings?.indian?.capital ?? 100000);
-    
+  // Baseline capital: ₹1.5L for Cash (5 stocks x ₹30k margin) or ₹15L for Futures
+  const peakTotalCapital = selectedPlan === "original_futures" ? 1500000 : 150000;
   const overallRoi = peakTotalCapital > 0 ? (totalPnL / peakTotalCapital) * 100 : 0;
 
   const totalCapitalUsed = activePositions.reduce((acc, o) => {
     const qty = o.active_leg === "BUY" ? o.buy_qty : o.sell_qty;
     let cap = (o.entry_price || 0) * qty;
-    if (o.plan && (o.plan.startsWith("futures") || o.plan === "dynamic_volume")) {
+    if (selectedPlan === "original_futures") {
       cap = cap * 0.20;
     }
     return acc + cap;
@@ -250,32 +195,73 @@ export default function SimulationPage() {
             <div className="flex justify-between items-start mb-4">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Simulation P&L</p>
               <div className={cn(
-                  <BarChart3 className="w-5 h-5" />
-                </div>
+                "p-2 rounded-lg",
+                totalPnL >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+              )}>
+                {totalPnL >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
               </div>
-              <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
-                {winRate.toFixed(1)}%
-              </h3>
-              <p className="text-xs text-slate-500">
-                {targetHits} Wins | {slHits} Losses ({completedPositions.length} Closed)
-              </p>
-              <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-purple-500/10 blur-3xl pointer-events-none" />
-            </GlassCard>
+            </div>
+            <h3 className={cn(
+              "text-3xl font-bold tracking-tight font-display mb-1",
+              totalPnL > 0 ? "text-emerald-400" : (totalPnL < 0 ? "text-rose-400" : "text-white")
+            )}>
+              {totalPnL >= 0 ? "+" : ""}{totalPnL.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
+            </h3>
+            <p className="text-xs text-slate-500">
+              Est. ROI: <span className={cn("font-medium", overallRoi >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {overallRoi >= 0 ? "+" : ""}{overallRoi.toFixed(2)}%
+              </span> | Capital: {peakTotalCapital.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}
+            </p>
+            <div className={cn(
+              "absolute -bottom-12 -left-12 w-24 h-24 blur-3xl pointer-events-none",
+              totalPnL >= 0 ? "bg-emerald-500/10" : "bg-rose-500/10"
+            )} />
+          </GlassCard>
 
-            <GlassCard className="relative overflow-hidden p-6 border-white/5">
-              <div className="flex justify-between items-start mb-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Breakouts</p>
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
-                  <Clock className="w-5 h-5" />
-                </div>
+          <GlassCard className="relative overflow-hidden p-6 border-white/5">
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Positions</p>
+              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                <Activity className="w-5 h-5" />
               </div>
-              <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
-                {pendingOrders.length} <span className="text-sm font-medium text-slate-500">waiting</span>
-              </h3>
-              <p className="text-xs text-slate-500">Monitoring high/low brackets</p>
-              <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-amber-500/10 blur-3xl pointer-events-none" />
-            </GlassCard>
-          </div>
+            </div>
+            <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
+              {activePositions.length} <span className="text-sm font-medium text-slate-500">running</span>
+            </h3>
+            <p className="text-xs text-slate-500">Est. Margin Allocated: ₹{totalCapitalUsed.toLocaleString()}</p>
+            <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-blue-500/10 blur-3xl pointer-events-none" />
+          </GlassCard>
+
+          <GlassCard className="relative overflow-hidden p-6 border-white/5">
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hit/Win Rate</p>
+              <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+            </div>
+            <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
+              {winRate.toFixed(1)}%
+            </h3>
+            <p className="text-xs text-slate-500">
+              {targetHits} Wins | {slHits} Losses ({completedPositions.length} Closed)
+            </p>
+            <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-purple-500/10 blur-3xl pointer-events-none" />
+          </GlassCard>
+
+          <GlassCard className="relative overflow-hidden p-6 border-white/5">
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Breakouts</p>
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                <Clock className="w-5 h-5" />
+              </div>
+            </div>
+            <h3 className="text-3xl font-bold text-white tracking-tight font-display mb-1">
+              {pendingOrders.length} <span className="text-sm font-medium text-slate-500">waiting</span>
+            </h3>
+            <p className="text-xs text-slate-500">Monitoring high/low brackets</p>
+            <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-amber-500/10 blur-3xl pointer-events-none" />
+          </GlassCard>
+        </div>
 
           {/* Active Positions Section */}
           <div className="mb-8">
