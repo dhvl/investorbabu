@@ -17,7 +17,11 @@ export function middleware(req: NextRequest) {
 
   // Route rewriting based on subdomain
   if (subdomain === 'sim') {
-    url.pathname = `/subdomains/sim${url.pathname}`;
+    if (url.pathname === '/' || url.pathname === '') {
+      url.pathname = '/subdomains/sim/dashboard';
+    } else {
+      url.pathname = `/subdomains/sim${url.pathname}`;
+    }
     return NextResponse.rewrite(url);
   } else if (subdomain === 'admin') {
     url.pathname = `/subdomains/admin${url.pathname}`;
