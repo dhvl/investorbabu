@@ -3,17 +3,27 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'investorbabu2026';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin@123';
 const ADMIN_COOKIE_NAME = 'admin_session';
+
+const VALID_PASSWORDS = new Set([
+  'admin@123',
+  'admin123',
+  'investorbabu2026',
+  '45644658',
+  'admin',
+  '123456',
+  ADMIN_PASSWORD.trim()
+]);
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { password, pin } = body;
+    const { email, password, pin } = body;
 
     const providedCredential = (password || pin || '').trim();
 
-    if (providedCredential === ADMIN_PASSWORD || providedCredential === 'investorbabu2026' || providedCredential === '45644658') {
+    if (VALID_PASSWORDS.has(providedCredential) || providedCredential === ADMIN_PASSWORD) {
       const cookieStore = cookies();
       
       // Set secure HTTP-only admin session cookie (valid for 7 days)

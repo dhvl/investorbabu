@@ -1,17 +1,18 @@
 "use client";
 
 import React, { useState } from "react";
-import { TrendingUp, Lock, ShieldCheck, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { TrendingUp, Lock, Mail, ShieldCheck, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
 
 export default function AdminLoginPage() {
-  const [credential, setCredential] = useState("");
+  const [email, setEmail] = useState("admin@investorbabu.com");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!credential.trim()) return;
+    if (!password.trim()) return;
 
     setLoading(true);
     setError(null);
@@ -20,7 +21,10 @@ export default function AdminLoginPage() {
       const res = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: credential.trim() }),
+        body: JSON.stringify({ 
+          email: email.trim(),
+          password: password.trim() 
+        }),
       });
 
       const data = await res.json();
@@ -28,7 +32,7 @@ export default function AdminLoginPage() {
         // Successful login, navigate to dashboard
         window.location.href = "/dashboard";
       } else {
-        setError(data.message || "Invalid credentials. Access restricted.");
+        setError(data.message || "Invalid admin credentials. Access restricted.");
       }
     } catch (err: any) {
       setError("Authentication failed. Please check network connection.");
@@ -56,7 +60,7 @@ export default function AdminLoginPage() {
             </span>
           </div>
           <p className="text-slate-400 text-xs mt-1.5 max-w-xs">
-            Enter authorized master password or PIN to access client accounts, Nuvama trade engine & 20% commission ledgers.
+            Sign in to access client accounts, Nuvama trade engine & 20% commission ledgers.
           </p>
         </div>
 
@@ -69,19 +73,36 @@ export default function AdminLoginPage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleLogin} className="space-y-5">
-          <div className="space-y-2">
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block ml-1">
-              Admin Master Password / PIN
+              Admin Email
+            </label>
+            <div className="relative">
+              <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-sans text-sm"
+                placeholder="admin@investorbabu.com"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block ml-1">
+              Password
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 type="password"
-                value={credential}
-                onChange={(e) => setCredential(e.target.value)}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm"
-                placeholder="Enter password or client PIN"
+                placeholder="••••••••"
                 autoFocus
                 required
               />
@@ -90,14 +111,14 @@ export default function AdminLoginPage() {
 
           <button
             type="submit"
-            disabled={loading || !credential.trim()}
-            className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            disabled={loading || !password.trim()}
+            className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <>
-                <span>Secure Sign In</span>
+                <span>Sign In</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
