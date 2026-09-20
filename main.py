@@ -483,34 +483,26 @@ def run_scan():
     try:
         if is_market_open():
             now_ist = datetime.now(IST)
-            lines = []
+            active_lines = []
+            scanning_syms = []
+            
             for sym in indian_symbols:
                 status = get_active_trade_status(sym, is_us=False)
-                
                 if status:
-                    lines.append(
-                        f"• <b>#{sym}</b>\n"
-                        f"  {status}\n"
-                    )
+                    active_lines.append(f"• <b>#{sym}</b>\n  {status}\n")
                 else:
-                    ohlc = get_last_completed_candle(sym, is_us=False)
-                    if ohlc:
-                        lines.append(
-                            f"• <b>#{sym}</b> ({ohlc['time_range']})\n"
-                            f"  O: {ohlc['open']:.2f} | H: {ohlc['high']:.2f} | L: {ohlc['low']:.2f} | C: {ohlc['close']:.2f}\n"
-                            f"  Status: ⚪ Scanning (Inside Bar not formed)\n"
-                        )
-                    else:
-                        lines.append(
-                            f"• <b>#{sym}</b>\n"
-                            f"  Status: ⚪ Scanning (Inside Bar not formed)\n"
-                        )
+                    scanning_syms.append(f"#{sym}")
             
-            joined_lines = '\n'.join(lines)
-            msg = (
-                f"📊 <b>NSE CANDLE SCAN — {now_ist.strftime('%I:%M %p')}</b>\n\n"
-                f"{joined_lines}"
-            )
+            msg_parts = [f"📊 <b>NSE CANDLE SCAN — {now_ist.strftime('%I:%M %p')}</b>\n"]
+            
+            if active_lines:
+                msg_parts.append("\n".join(active_lines))
+                if scanning_syms:
+                    msg_parts.append(f"⚪ <b>Scanning:</b> {', '.join(scanning_syms)}")
+            else:
+                msg_parts.append(f"⚪ <b>No active trades.</b>\n🔍 <b>Scanning:</b> {', '.join(scanning_syms)}")
+                
+            msg = "\n".join(msg_parts)
             send_trade_message(msg)
     except Exception as report_err:
         logger.error(f"Failed to generate candle scan report: {report_err}")
@@ -606,12 +598,16 @@ def main():
 
     start_tracker()  # Start order monitoring
     
-    # Generate daily SMC session token on startup
+    # Verify daily Nuvama session on startup
     try:
-        from smc_session_manager import refresh_smc_session
-        refresh_smc_session()
+        from nuvama_session_manager import get_active_session
+        sess = get_active_session()
+        if sess:
+            logger.info("Nuvama API Connect session verified and active.")
+        else:
+            logger.warning("No active Nuvama session found. Waiting for morning auth.")
     except Exception as e:
-        logger.error(f"Failed to generate SMC session token on startup: {e}")
+        logger.error(f"Failed to verify Nuvama session on startup: {e}")
         
     last_reset_date = datetime.now().date()
 
@@ -633,12 +629,14 @@ def main():
                 except Exception as e:
                     logger.error(f"Failed to reset daily placed orders cache: {e}")
                 
-                # Regenerate daily SMC session token
+                # Check / refresh daily Nuvama session
                 try:
-                    from smc_session_manager import refresh_smc_session
-                    refresh_smc_session()
+                    from nuvama_session_manager import get_active_session, automated_headless_login
+                    sess = get_active_session() or automated_headless_login()
+                    if sess:
+                        logger.info("Daily Nuvama session active for trading day.")
                 except Exception as e:
-                    logger.error(f"Failed to regenerate daily SMC session token: {e}")
+                    logger.error(f"Failed to refresh daily Nuvama session: {e}")
                     
                 last_reset_date = now.date()
 

@@ -106,8 +106,8 @@ def spawn_second_trade(parent_order: dict, leg: str, trigger_time: str, sim_orde
     # 0.15% offset from target for the new entry
     if leg == "BUY":
         new_entry = round(parent_order["buy_target"] * 1.0015, 2)
-        new_tgt = round(new_entry * 1.004, 2)
-        new_sl = round(new_entry * 0.99, 2)
+        new_tgt = round(new_entry * 1.010, 2)
+        new_sl = round(new_entry * 0.990, 2)
         
         buy_entry = new_entry
         buy_target = new_tgt
@@ -120,8 +120,8 @@ def spawn_second_trade(parent_order: dict, leg: str, trigger_time: str, sim_orde
         sell_qty = 0
     else:
         new_entry = round(parent_order["sell_target"] * 0.9985, 2)
-        new_tgt = round(new_entry * 0.996, 2)
-        new_sl = round(new_entry * 1.01, 2)
+        new_tgt = round(new_entry * 0.990, 2)
+        new_sl = round(new_entry * 1.010, 2)
         
         sell_entry = new_entry
         sell_target = new_tgt

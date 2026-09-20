@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { TrendingUp, Lock, ShieldCheck, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { GlassCard } from "@/components/GlassCard";
 
-export default function RootLoginPage() {
+export default function AdminLoginPage() {
   const [credential, setCredential] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +25,7 @@ export default function RootLoginPage() {
 
       const data = await res.json();
       if (res.ok && data.status === "success") {
+        // Successful login, navigate to dashboard
         window.location.href = "/dashboard";
       } else {
         setError(data.message || "Invalid credentials. Access restricted.");

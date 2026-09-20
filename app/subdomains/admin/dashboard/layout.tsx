@@ -128,10 +128,18 @@ export default function DashboardLayout({
             <Settings className="w-5 h-5" />
             <span className="font-medium text-sm">System Settings</span>
           </Link>
-          <Link href="/login" className="flex items-center gap-3 px-3 py-2 rounded-xl text-red-500 hover:bg-red-500/10 transition-all">
+          <button 
+            onClick={async () => {
+              try {
+                await fetch('/api/admin/auth', { method: 'DELETE' });
+              } catch (e) {}
+              window.location.href = '/login';
+            }} 
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all text-left w-full cursor-pointer"
+          >
             <LogOut className="w-5 h-5" />
             <span className="font-medium text-sm">Logout</span>
-          </Link>
+          </button>
         </div>
       </aside>
 
