@@ -4,173 +4,7 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-const INITIAL_RECORDS = [
-  {
-    id: "pnl-20260921-45644658",
-    date: "2026-09-21",
-    client_id: "45644658",
-    client_name: "Dhaval Vadgama",
-    broker: "Nuvama Wealth",
-    gross_profit: 28450.00,
-    commission_rate: 0.20,
-    commission_amount: 5690.00,
-    net_client_profit: 22760.00,
-    trades_count: 5,
-    payout_status: "PENDING",
-    trades: [
-      {
-        symbol: "TATASTEEL",
-        action: "SELL",
-        entry_price: 184.02,
-        exit_price: 182.20,
-        quantity: 10000,
-        pnl: 18200.00,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "1.0% Target Hit",
-        time: "03:15 PM IST"
-      },
-      {
-        symbol: "HAVELLS",
-        action: "SELL",
-        entry_price: 1148.90,
-        exit_price: 1137.60,
-        quantity: 600,
-        pnl: 6780.00,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "1.0% Target Hit",
-        time: "03:15 PM IST"
-      },
-      {
-        symbol: "DLF",
-        action: "SELL",
-        entry_price: 666.50,
-        exit_price: 659.95,
-        quantity: 525,
-        pnl: 3438.75,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "1.0% Target Hit",
-        time: "03:15 PM IST"
-      },
-      {
-        symbol: "BHEL",
-        action: "SELL",
-        entry_price: 420.50,
-        exit_price: 424.80,
-        quantity: 2300,
-        pnl: -9890.00,
-        target_pct: 1.0,
-        status: "STOP_LOSS_HIT",
-        exit_reason: "1.0% Stop Loss",
-        time: "03:15 PM IST"
-      },
-      {
-        symbol: "BHEL",
-        action: "BUY (SAR 2x)",
-        entry_price: 424.80,
-        exit_price: 429.05,
-        quantity: 4600,
-        pnl: 19550.00,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "SAR Reversal Target",
-        time: "03:22 PM IST"
-      }
-    ]
-  },
-  {
-    id: "pnl-20260920-45644658",
-    date: "2026-09-20",
-    client_id: "45644658",
-    client_name: "Dhaval Vadgama",
-    broker: "Nuvama Wealth",
-    gross_profit: 35200.00,
-    commission_rate: 0.20,
-    commission_amount: 7040.00,
-    net_client_profit: 28160.00,
-    trades_count: 3,
-    payout_status: "INVOICED",
-    trades: [
-      {
-        symbol: "POLYCAB",
-        action: "BUY",
-        entry_price: 6820.00,
-        exit_price: 6888.20,
-        quantity: 250,
-        pnl: 17050.00,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "1.0% Target Hit",
-        time: "11:15 AM IST"
-      },
-      {
-        symbol: "ADANIENSOL",
-        action: "SELL",
-        entry_price: 1394.10,
-        exit_price: 1380.15,
-        quantity: 800,
-        pnl: 11160.00,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "1.0% Target Hit",
-        time: "01:45 PM IST"
-      },
-      {
-        symbol: "TATASTEEL",
-        action: "BUY",
-        entry_price: 182.50,
-        exit_price: 184.32,
-        quantity: 3840,
-        pnl: 6990.00,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "1.0% Target Hit",
-        time: "02:30 PM IST"
-      }
-    ]
-  },
-  {
-    id: "pnl-20260919-45644658",
-    date: "2026-09-19",
-    client_id: "45644658",
-    client_name: "Dhaval Vadgama",
-    broker: "Nuvama Wealth",
-    gross_profit: 22100.00,
-    commission_rate: 0.20,
-    commission_amount: 4420.00,
-    net_client_profit: 17680.00,
-    trades_count: 2,
-    payout_status: "PAID",
-    trades: [
-      {
-        symbol: "DLF",
-        action: "BUY",
-        entry_price: 655.00,
-        exit_price: 661.55,
-        quantity: 2000,
-        pnl: 13100.00,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "1.0% Target Hit",
-        time: "10:30 AM IST"
-      },
-      {
-        symbol: "HAVELLS",
-        action: "BUY",
-        entry_price: 1120.00,
-        exit_price: 1131.25,
-        quantity: 800,
-        pnl: 9000.00,
-        target_pct: 1.0,
-        status: "TARGET_HIT",
-        exit_reason: "1.0% Target Hit",
-        time: "02:15 PM IST"
-      }
-    ]
-  }
-];
+const INITIAL_RECORDS: any[] = [];
 
 const LOCAL_FILE = path.join(process.cwd(), 'data', 'client_daily_pnl.json');
 const VPS_FILE = '/home/investo/bluecandle/client_daily_pnl.json';
@@ -201,7 +35,7 @@ export async function GET(request: Request) {
       records = INITIAL_RECORDS;
     }
 
-    if (!Array.isArray(records) || records.length === 0) {
+    if (!Array.isArray(records)) {
       records = INITIAL_RECORDS;
     }
 
@@ -246,12 +80,12 @@ export async function GET(request: Request) {
     console.error('Error fetching client PnL:', error);
     return NextResponse.json({
       status: 'success',
-      data: INITIAL_RECORDS,
+      data: [],
       summary: {
-        totalGrossProfit: 85750.00,
-        totalCommission: 17150.00,
-        totalNetProfit: 68600.00,
-        totalTrades: 10,
+        totalGrossProfit: 0.00,
+        totalCommission: 0.00,
+        totalNetProfit: 0.00,
+        totalTrades: 0,
         activeClientsCount: 1,
         commissionRate: 0.20,
       }
@@ -271,10 +105,8 @@ export async function POST(request: Request) {
       try {
         records = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       } catch {
-        records = INITIAL_RECORDS;
+        records = [];
       }
-    } else {
-      records = INITIAL_RECORDS;
     }
 
     if (action === 'update_status') {
